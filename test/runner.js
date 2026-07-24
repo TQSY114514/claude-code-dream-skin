@@ -94,11 +94,11 @@ async function testThemeEngine() {
     assert(fs.existsSync(path.join(ROOT, 'themes', 'test-theme', 'style.css')), 'style.css exists');
   });
 
-  test('getInjectionCSS combines theme CSS with Claude overrides', () => {
+  test('getInjectionCSS combines skin CSS with theme overrides', () => {
     const inputCSS = ':root { --ds-bg: #111; }';
-    const result = ThemeEngine.getInjectionCSS(inputCSS);
+    const result = ThemeEngine.getInjectionCSS(inputCSS, null);
     assert(result.includes('--ds-bg: #111'), 'Contains theme CSS');
-    assert(result.includes('.dream-skin-active'), 'Contains Claude-specific selectors');
+    assert(result.includes('data-dream-skin="active"') || result.includes('__DREAM_SELECTOR') || result.includes('aside'), 'Contains skin CSS (selectors or data attributes)');
   });
 
   test('deleteTheme removes a theme', () => {

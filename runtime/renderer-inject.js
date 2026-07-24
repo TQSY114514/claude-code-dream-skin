@@ -27,6 +27,27 @@
     sendButton:        '[class*="send"], [class*="Submit"], [class*="submit"], button[type="submit"]',
   };
 
+  // ── Feature detection ──────────────────────────────────────────────────────
+  const SUPPORTS_HAS = CSS.supports && CSS.supports('selector(:has(*))');
+  const HAS_POLYFILL = !SUPPORTS_HAS;
+
+  // ── DOM utilities ──────────────────────────────────────────────────────────
+  function isHomeRoute(doc) {
+    const html = doc.documentElement;
+    const path = html.getAttribute('data-route-path') || '';
+    const url = doc.location?.href || '';
+    // Check URL patterns
+    if (url.includes('/home') || url.includes('/welcome') || url.includes('/new')) return true;
+    // Check route attributes
+    if (path === '/' || path === '/home' || path === '/welcome') return true;
+    // Check if no conversation is selected (home state)
+    if (html.hasAttribute('data-conversation-id')) return false;
+    // Check for home-specific DOM markers
+    const homeMarkers = doc.querySelector('[class*="home"], [class*="welcome"], [class*="game-source"]');
+    if (homeMarkers) return true;
+    return false;
+  }
+
   // ── Token map ─────────────────────────────────────────────────────────────
   const TOKEN_MAP = {
     '__DREAM_SELECTOR_SHELL_MAIN__':          'SELECTOR_shellMain',
@@ -229,7 +250,22 @@
     const doc = document;
     const isDark = currentShell === 'dark';
 
-    let compiled = compileCSS(rawCSS, doc, false);
+    let compiled = rawCSS;
+
+    // Compile selectors from tokens
+    const resolved = resolveAllSelectors(doc, false);
+    for (const [token, selector] of Object.entries(resolved)) {
+      compiled = compiled.split(token).join(selector);
+    }
+
+    // :has() graceful degradation:
+    // If the browser doesn't support :has(), the :not(:has(...)) selectors simply
+    // won't match. We can't polyfill them, so we log a warning and accept that
+    // art overlays won't appear in thread views. The home hero card still uses
+    // background-image: var(--dream-skin-art) directly, unaffected.
+    if (HAS_POLYFILL) {
+      console.warn('[DreamSkin] :has() not supported — background art overlays disabled in conversation views. Update your Chromium version for full features.');
+    }
 
     // Compile home-root selector with safe-area check
     const hasRightSafeArea = doc.querySelector('[data-dream-art-safe="right"]');

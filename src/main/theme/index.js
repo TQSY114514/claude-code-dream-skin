@@ -297,77 +297,25 @@ class ThemeEngine {
   }
 
   getInjectionCSS(themeCSS, backgroundBase64) {
-    const bgRules = backgroundBase64
-      ? `
-/* Background image layer */
-.dream-skin-active {
-  background: var(--ds-bg) url(${backgroundBase64}) center/cover no-repeat fixed !important;
-}
-.dream-skin-active [class*="sidebar"],
-.dream-skin-active [class*="Sidebar"],
-.dream-skin-active aside,
-.dream-skin-active nav {
-  background: rgba(var(--ds-panel-rgb, 20,20,23), 0.85) !important;
-  backdrop-filter: blur(12px) saturate(1.4) !important;
-  -webkit-backdrop-filter: blur(12px) saturate(1.4) !important;
-}
-.dream-skin-active [class*="message"] {
-  background: rgba(var(--ds-surface-rgb, 26,26,31), 0.75) !important;
-  backdrop-filter: blur(8px) !important;
-  -webkit-backdrop-filter: blur(8px) !important;
-}
-`
-      : '';
-
-    const claudeSpecificRules = `
-/* Claude Code Desktop specific overrides */
-.dream-skin-active {
-  scrollbar-width: thin;
-  scrollbar-color: var(--ds-muted) transparent;
-}
-
-.dream-skin-active .message,
-.dream-skin-active [class*="message"],
-.dream-skin-active [class*="Message"] {
-  font-family: var(--ds-font-family, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif);
-  line-height: var(--ds-line-height, 1.6);
-  color: var(--ds-text);
-}
-
-.dream-skin-active pre,
-.dream-skin-active code,
-.dream-skin-active [class*="code"],
-.dream-skin-active [class*="Code"],
-.dream-skin-active pre[class*="language-"] {
-  background: var(--ds-surface) !important;
-  border: 1px solid var(--ds-border, rgba(255,255,255,0.06)) !important;
-  border-radius: var(--ds-radius, 8px) !important;
-  font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace !important;
-}
-
-.dream-skin-active textarea,
-.dream-skin-active [contenteditable="true"],
-.dream-skin-active [role="textbox"] {
-  background: var(--ds-surface) !important;
-  color: var(--ds-text) !important;
-  border-color: var(--ds-border, rgba(255,255,255,0.08)) !important;
-  border-radius: var(--ds-radius, 12px) !important;
-}
-
-.dream-skin-active [class*="sidebar"],
-.dream-skin-active [class*="Sidebar"],
-.dream-skin-active nav {
-  background: var(--ds-panel) !important;
-  border-right: 1px solid var(--ds-border, rgba(255,255,255,0.04)) !important;
-}
-
-.dream-skin-active ::selection {
-  background: var(--ds-accent-rgb, 255,107,53) !important;
-  color: white !important;
-}
-    `;
-    return themeCSS + '\n' + claudeSpecificRules;
+    // Load the compiled skin CSS (pre-processed by sync-runtime-assets.mjs at build time)
+    let skinCSS = '';
+    try {
+      const compiledPath = path.join(__dirname, '..', '..', '..', 'runtime', 'dream-skin-compiled.css');
+      const sourcePath = path.join(__dirname, '..', '..', '..', 'runtime', 'dream-skin.css');
+      if (fs.existsSync(compiledPath)) {
+        skinCSS = fs.readFileSync(compiledPath, 'utf8');
+      } else {
+        skinCSS = fs.readFileSync(sourcePath, 'utf8');
+      }
+    } catch (e) {
+      console.warn('[ThemeEngine] Skin CSS load failed:', e.message);
+    }
+    // skinCSS contains all Claude Desktop specific rules with resolved selectors.
+    // themeCSS (per-theme) provides CSS custom property overrides and is appended
+    // after so it takes precedence via cascade order.
+    return skinCSS + '\n\n' + themeCSS + '\n';
   }
+
 
   backupCurrentTheme() {
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);

@@ -114,8 +114,9 @@ class CDPInjector {
       // Create a CDP client scoped to this session
       const pageClient = await CDP({ target: `${sessionId}` });
 
-      // Enable CSS domain
+      // Enable domains
       await pageClient.CSS.enable();
+      await pageClient.Runtime.enable();
 
       // Remove previous injection for this target
       const existing = this.attachedSessions.get(targetId);
@@ -126,7 +127,7 @@ class CDPInjector {
         try { await existing.pageClient.close(); } catch (_) { /* ignore */ }
       }
 
-      // Inject theme CSS
+      // 1. Inject theme CSS first
       let styleSheetId = null;
       if (this.themeCSS) {
         const result = await pageClient.CSS.addStyleSheet({
@@ -136,37 +137,59 @@ class CDPInjector {
         styleSheetId = result.styleSheetId;
       }
 
-      // Inject JS guard to track injection state
-      await pageClient.Runtime.evaluate({
-        expression: this._guardCode(),
-        returnByValue: true,
-      });
-
-      // Inject the renderer engine (selector resolution, image analysis, theme application)
+      // 2. Inject the renderer engine (split into chunks to avoid expression length limits)
       if (this._injectorCode) {
-        try {
-          await pageClient.Runtime.evaluate({
-            expression: this._injectorCode,
-            returnByValue: true,
-          });
-        } catch (e) {
-          console.warn(`[CDPInjector] JS injection warning for ${targetId.substring(0, 8)}: ${e.message}`);
+        const chunks = this._chunkCode(this._injectorCode, 50000);
+        for (let i = 0; i < chunks.length; i++) {
+          const label = i === 0 ? 'DreamSkin-Injector-Start' :
+                        i === chunks.length - 1 ? 'DreamSkin-Injector-End' :
+                        `DreamSkin-Injector-${i}`;
+          try {
+            const evalResult = await pageClient.Runtime.evaluate({
+              expression: chunks[i],
+              returnByValue: true,
+              timeout: 10000,
+            });
+            if (evalResult.exceptionDetails) {
+              console.warn(`[CDPInjector] JS chunk ${i} error for ${targetId.substring(0, 8)}: ${evalResult.exceptionDetails.text}`);
+            }
+          } catch (e) {
+            console.warn(`[CDPInjector] JS chunk ${i} warning: ${e.message}`);
+          }
         }
       }
 
-      // Inject theme meta to the renderer engine
-      if (this.themeMeta && this._injectorCode) {
+      // 3. Inject theme metadata — store large base64 data in sessionStorage
+      if (this.themeMeta) {
+        const metaWithoutBase64 = { ...this.themeMeta };
+        if (this.themeMeta.backgroundBase64 && this.themeMeta.backgroundBase64.length > 10000) {
+          // Store large image data in sessionStorage to avoid expression length limits
+          await pageClient.Runtime.evaluate({
+            expression: `(() => { try { sessionStorage.setItem('__dreamSkin_bg', ${JSON.stringify(this.themeMeta.backgroundBase64)}); } catch(e) {} })()`,
+            returnByValue: true,
+          });
+          metaWithoutBase64.backgroundBase64 = null;
+          metaWithoutBase64._bgFromStorage = true;
+        }
+
         try {
           await pageClient.Runtime.evaluate({
-            expression: `(() => {
-              const meta = ${JSON.stringify(this.themeMeta)};
-              window.__dreamSkinThemeMeta__ = meta;
-            })()`,
+            expression: `(() => { try { window.__dreamSkinThemeMeta__ = ${JSON.stringify(metaWithoutBase64)}; } catch(e) { console.warn("[DreamSkin] meta set failed:", e); } })()`,
             returnByValue: true,
           });
         } catch (e) {
           console.warn(`[CDPInjector] Meta injection warning: ${e.message}`);
         }
+      }
+
+      // 4. Run the renderer engine's apply function with meta
+      if (this._injectorCode && this.themeMeta) {
+        try {
+          await pageClient.Runtime.evaluate({
+            expression: `(() => { try { if (window.__dreamSkinApi && window.__dreamSkinApi.apply) { const m = window.__dreamSkinThemeMeta__ || {}; window.__dreamSkinApi.apply(m.rawCSS || '', m); } } catch(e) {} })()`,
+            returnByValue: true,
+          });
+        } catch (_) { /* non-critical */ }
       }
 
       this.attachedSessions.set(targetId, {
@@ -315,9 +338,32 @@ class CDPInjector {
         document.querySelectorAll('meta[id="__cdp_dream_skin__"]').forEach(function(el) {
           el.remove();
         });
+        try { sessionStorage.removeItem('__dreamSkin_bg'); } catch(e) {}
         return removed;
       })()
     `;
+  }
+
+  /**
+   * Split a long code string into chunks to avoid CDP Runtime.evaluate
+   * expression length limits (~65KB in practice).
+   */
+  _chunkCode(code, maxLen) {
+    if (code.length <= maxLen) return [code];
+    const chunks = [];
+    let remaining = code;
+    while (remaining.length > 0) {
+      if (remaining.length <= maxLen) {
+        chunks.push(remaining);
+        break;
+      }
+      // Try to split at a statement boundary
+      let splitAt = remaining.lastIndexOf(';', maxLen);
+      if (splitAt < maxLen * 0.5) splitAt = maxLen;
+      chunks.push(remaining.substring(0, splitAt));
+      remaining = remaining.substring(splitAt);
+    }
+    return chunks;
   }
 }
 
