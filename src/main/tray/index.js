@@ -41,9 +41,17 @@ class SkinManager {
     return getLocale(this.locale)[key] || key;
   }
 
-  async start() {
+  start() {
     this.createWindow();
     this.createTray();
+
+    // Auto-show the manager window on startup so user can see it
+    setTimeout(() => {
+      if (this.mainWindow && !this.mainWindow.isDestroyed()) {
+        this.mainWindow.show();
+        this.mainWindow.focus();
+      }
+    }, 300);
 
     // Check Claude status periodically
     this.trayUpdateInterval = setInterval(() => {
@@ -52,20 +60,6 @@ class SkinManager {
 
     // Initial check
     this.checkClaudeStatus();
-
-    // Show window after a short delay to ensure renderer is ready
-    setTimeout(() => {
-      if (this.mainWindow && !this.mainWindow.isDestroyed()) {
-        this.mainWindow.show();
-        this.mainWindow.focus();
-        this.mainWindow.setAlwaysOnTop(true);
-        setTimeout(() => {
-          if (this.mainWindow && !this.mainWindow.isDestroyed()) {
-            this.mainWindow.setAlwaysOnTop(false);
-          }
-        }, 1000);
-      }
-    }, 500);
   }
 
   async checkClaudeStatus() {

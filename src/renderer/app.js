@@ -85,117 +85,79 @@ function initLanguageSwitcher() {
 // ── Initialization ─────────────────────────────────────────────────────────
 
 document.addEventListener('DOMContentLoaded', async () => {
+  let failStep = 'unknown';
   try {
     console.log('[Init] DOMContentLoaded, cds:', typeof cds);
-    debugInit('DOM ready');
+    debugLog('DOM ready');
 
-    initTitleBar();
-    debugInit('Title bar OK');
+    try { initTitleBar(); debugLog('Title bar OK'); } catch(e) { failStep = 'titleBar'; throw e; }
+    try { initTabs(); debugLog('Tabs OK'); } catch(e) { failStep = 'tabs'; throw e; }
+    try { initImport(); debugLog('Import OK'); } catch(e) { failStep = 'import'; throw e; }
+    try { initBackups(); debugLog('Backups OK'); } catch(e) { failStep = 'backups'; throw e; }
+    try { initSettings(); debugLog('Settings OK'); } catch(e) { failStep = 'settings'; throw e; }
+    try { initEventListeners(); debugLog('Events OK'); } catch(e) { failStep = 'events'; throw e; }
+    try { initLanguageSwitcher(); debugLog('Lang OK'); } catch(e) { failStep = 'lang'; throw e; }
 
-    initTabs();
-    debugInit('Tabs OK');
-
-    initImport();
-    debugInit('Import OK');
-
-    initBackups();
-    debugInit('Backups OK');
-
-    initSettings();
-    debugInit('Settings OK');
-
-    initEventListeners();
-    debugInit('Events OK');
-
-    initLanguageSwitcher();
-    debugInit('Language switcher OK');
-
-    // Apply current locale to UI
     const currentLocale = await cds.locale.get();
-    debugInit('Locale get OK: ' + currentLocale);
     applyLocale(currentLocale);
 
-    // Update language label
     const langLabel = document.getElementById('current-lang-label');
     if (langLabel && window.__dreamSkinLocale) {
       const key = currentLocale === 'zh-CN' ? 'langZh' : 'langEn';
       langLabel.textContent = window.__dreamSkinLocale.t(key);
     }
 
-    // Listen for events from main process
     cds.on('theme-changed', (data) => {
       activeThemeName = data.name;
       renderThemeCards();
-      const msgKey = data.name ? 'toastApplied' : 'toastRestored';
-      const msg = data.name
-        ? `${window.__dreamSkinLocale?.t('toastApplied') || 'Theme applied'}: "${data.name}"`
-        : window.__dreamSkinLocale?.t('toastRestored') || 'Restored to default';
-      showToast(msg, 'success');
+      showToast((data.name ? window.__dreamSkinLocale?.t('toastApplied') : window.__dreamSkinLocale?.t('toastRestored')) || 'Done', 'success');
     });
+    cds.on('injection-status', updateInjectionStatus);
+    cds.on('claude-status-changed', updateClaudeStatus);
+    cds.on('refresh-themes', refreshThemeList);
+    cds.on('error', (error) => showToast(error.message || 'An error occurred', 'error'));
 
-    cds.on('injection-status', (status) => {
-      updateInjectionStatus(status);
-    });
+    try { await refreshThemeList(); debugLog('Themes OK'); } catch(e) { failStep = 'refreshThemes'; throw e; }
+    try { await populateBaseThemeDropdown(); debugLog('Dropdown OK'); } catch(e) { failStep = 'dropdown'; throw e; }
+    try { await checkInitialStatus(); debugLog('Status OK'); } catch(e) { failStep = 'status'; throw e; }
 
-    cds.on('claude-status-changed', (status) => {
-      updateClaudeStatus(status);
-    });
-
-    cds.on('injection-event', (event) => {
-      console.log('[Renderer] Injection event:', event);
-    });
-
-    cds.on('refresh-themes', () => {
-      refreshThemeList();
-    });
-
-    cds.on('error', (error) => {
-      showToast(error.message || 'An error occurred', 'error');
-    });
-
-    // Initial load
-    await refreshThemeList();
-    debugInit('Theme list OK');
-    await populateBaseThemeDropdown();
-    debugInit('Dropdown OK');
-    await checkInitialStatus();
-    debugInit('Status check OK');
-
-    // Show a success indicator
-    showDebugIndicator('Ready - all buttons should work');
+    debugLog('ALL READY');
     console.log('[Init] ALL DONE');
   } catch (err) {
-    console.error('[Init] FATAL ERROR:', err);
-    showDebugIndicator('ERROR: ' + err.message);
+    const msg = 'Init failed at: ' + failStep + ' | ' + err.message;
+    console.error('[Init]', msg, err);
+    debugLog('ERROR: ' + failStep + ' - ' + err.message);
   }
 });
 
-let debugTimeout = null;
-function debugInit(msg) {
+let debugTimer = null;
+function debugLog(msg) {
   console.log('[Init]', msg);
-  showDebugIndicator(msg);
-}
-
-function showDebugIndicator(msg) {
-  // Remove previous indicator
-  const prev = document.getElementById('ds-debug-indicator');
-  if (prev) prev.remove();
-
-  const el = document.createElement('div');
-  el.id = 'ds-debug-indicator';
-  el.style.cssText = 'position:fixed;top:50px;left:10px;right:10px;background:rgba(0,0,0,0.85);color:#0f0;font:11px monospace;padding:8px;border-radius:4px;z-index:99999;max-height:200px;overflow:auto;white-space:pre-wrap;word-break:break-all;';
+  // Overlay indicator
+  let el = document.getElementById('ds-init-log');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'ds-init-log';
+    el.style.cssText = 'position:fixed;top:38px;left:0;right:0;background:rgba(0,0,0,0.92);color:#0f0;font:11px/1.6 monospace;padding:8px 12px;z-index:99999;max-height:120px;overflow:auto;pointer-events:none;';
+    document.body.appendChild(el);
+  }
   el.textContent = msg;
-  document.body.appendChild(el);
-
-  if (debugTimeout) clearTimeout(debugTimeout);
-  debugTimeout = setTimeout(() => el.remove(), 3000);
+  if (debugTimer) clearTimeout(debugTimer);
+  debugTimer = setTimeout(() => { if (el) el.remove(); }, 4000);
 }
 
 // ── Title Bar ──────────────────────────────────────────────────────────────
 
 function initTitleBar() {
-  document.getElementById('btn-minimize')?.addEventListener('click', () => cds.window.minimize());
-  document.getElementById('btn-close')?.addEventListener('click', () => cds.window.close());
+  try {
+    const btnMin = document.getElementById('btn-minimize');
+    const btnClose = document.getElementById('btn-close');
+    btnMin?.addEventListener('click', () => { console.log('minimize clicked'); cds.window.minimize(); });
+    btnClose?.addEventListener('click', () => { console.log('close clicked'); cds.window.close(); });
+    console.log('[initTitleBar] buttons found:', !!btnMin, !!btnClose);
+  } catch (e) {
+    console.error('[initTitleBar] ERROR:', e);
+  }
 }
 
 // ── Tabs ───────────────────────────────────────────────────────────────────

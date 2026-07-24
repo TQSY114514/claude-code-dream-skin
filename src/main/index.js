@@ -3,8 +3,12 @@ const path = require('path');
 const SkinManager = require('./tray');
 const { getLocale, getAvailableLocales, detectLocale } = require('./locales');
 
-// Disable GPU acceleration to avoid crashes on systems with GPU issues
+// GPU crash prevention — must be set before 'ready' event
 app.disableHardwareAcceleration();
+app.commandLine.appendSwitch('disable-gpu');
+app.commandLine.appendSwitch('disable-software-rasterizer');
+app.commandLine.appendSwitch('disable-gpu-compositing');
+app.commandLine.appendSwitch('in-process-gpu');
 
 // Prevent multiple instances
 const gotTheLock = app.requestSingleInstanceLock();
