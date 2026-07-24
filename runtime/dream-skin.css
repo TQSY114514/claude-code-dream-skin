@@ -437,6 +437,100 @@ html[data-dream-skin="active"] .token.regex,
 html[data-dream-skin="active"] .token.important,
 html[data-dream-skin="active"] .token.variable { color: var(--ds-lime, #e5c07b) !important; }
 
+/* ── Generic components (settings, forms, tables, modals) ─────────────── */
+html[data-dream-skin="active"] input,
+html[data-dream-skin="active"] select,
+html[data-dream-skin="active"] textarea {
+  background: var(--ds-panel) !important;
+  border: 1px solid var(--ds-line) !important;
+  border-radius: var(--ds-radius, 8px) !important;
+  color: var(--ds-text) !important;
+  font-family: var(--ds-font-family, inherit) !important;
+}
+html[data-dream-skin="active"] input:focus,
+html[data-dream-skin="active"] select:focus,
+html[data-dream-skin="active"] textarea:focus {
+  border-color: var(--ds-accent) !important;
+  box-shadow: 0 0 0 3px rgba(var(--ds-accent-rgb), .15) !important;
+  outline: none !important;
+}
+html[data-dream-skin="active"] button {
+  font-family: var(--ds-font-family, inherit) !important;
+  border-radius: var(--ds-radius, 8px) !important;
+  transition: all .18s cubic-bezier(.22,1,.36,1) !important;
+}
+html[data-dream-skin="active"] button:hover {
+  transform: translateY(-1px) !important;
+}
+html[data-dream-skin="active"] hr {
+  border: none !important; border-top: 1px solid var(--ds-line) !important; margin: 1.5em 0 !important;
+}
+html[data-dream-skin="active"] table {
+  border-collapse: collapse !important; width: 100% !important;
+}
+html[data-dream-skin="active"] th,
+html[data-dream-skin="active"] td {
+  border: 1px solid var(--ds-line) !important; padding: 8px 12px !important;
+}
+html[data-dream-skin="active"] th {
+  background: var(--ds-panel) !important; color: var(--ds-text) !important; font-weight: 600 !important;
+}
+html[data-dream-skin="active"] td {
+  background: transparent !important; color: var(--ds-text) !important;
+}
+html[data-dream-skin="active"] [role="dialog"],
+html[data-dream-skin="active"] [class*="modal"],
+html[data-dream-skin="active"] [class*="Modal"],
+html[data-dream-skin="active"] [class*="overlay"],
+html[data-dream-skin="active"] [class*="Overlay"] {
+  background: rgb(var(--ds-bg-rgb) / .88) !important;
+  backdrop-filter: blur(16px) saturate(108%) !important;
+  border: 1px solid var(--ds-line) !important;
+  border-radius: 16px !important;
+}
+html[data-dream-skin="active"] [role="menu"],
+html[data-dream-skin="active"] [class*="menu"],
+html[data-dream-skin="active"] [class*="Menu"] {
+  background: var(--ds-panel) !important;
+  border: 1px solid var(--ds-line) !important;
+  border-radius: 12px !important;
+  box-shadow: 0 8px 24px rgb(var(--ds-bg-rgb) / .30) !important;
+  padding: 4px !important;
+}
+html[data-dream-skin="active"] [role="menuitem"],
+html[data-dream-skin="active"] [class*="menu-item"] {
+  border-radius: 8px !important; padding: 8px 12px !important; color: var(--ds-text) !important;
+}
+html[data-dream-skin="active"] [role="menuitem"]:hover,
+html[data-dream-skin="active"] [class*="menu-item"]:hover {
+  background: rgb(var(--ds-accent-rgb) / .12) !important; color: var(--ds-accent) !important;
+}
+html[data-dream-skin="active"] [class*="tooltip"],
+html[data-dream-skin="active"] [class*="Tooltip"] {
+  background: var(--ds-panel-2) !important; color: var(--ds-text) !important;
+  border: 1px solid var(--ds-line) !important; border-radius: 8px !important;
+}
+html[data-dream-skin="active"] [class*="badge"],
+html[data-dream-skin="active"] [class*="Badge"] {
+  border-radius: 999px !important;
+}
+html[data-dream-skin="active"] [class*="card"],
+html[data-dream-skin="active"] [class*="Card"] {
+  background: var(--ds-panel) !important;
+  border: 1px solid var(--ds-line) !important;
+  border-radius: var(--ds-radius-lg, 16px) !important;
+  box-shadow: 0 4px 12px rgb(var(--ds-bg-rgb) / .10) !important;
+}
+html[data-dream-skin="active"] [class*="tab"],
+html[data-dream-skin="active"] [class*="Tab"] {
+  color: var(--ds-muted) !important; border-bottom: 2px solid transparent !important;
+}
+html[data-dream-skin="active"] [class*="tab"][aria-selected="true"],
+html[data-dream-skin="active"] [class*="Tab"][aria-selected="true"] {
+  color: var(--ds-accent) !important;
+  border-bottom-color: var(--ds-accent) !important;
+}
+
 /* ── Animations ── */
 @keyframes ds-spin { to { transform: rotate(360deg); } }
 @keyframes ds-pulse {
