@@ -85,61 +85,111 @@ function initLanguageSwitcher() {
 // ── Initialization ─────────────────────────────────────────────────────────
 
 document.addEventListener('DOMContentLoaded', async () => {
-  initTitleBar();
-  initTabs();
-  initImport();
-  initBackups();
-  initSettings();
-  initEventListeners();
-  initLanguageSwitcher();
+  try {
+    console.log('[Init] DOMContentLoaded, cds:', typeof cds);
+    debugInit('DOM ready');
 
-  // Apply current locale to UI
-  const currentLocale = await cds.locale.get();
-  applyLocale(currentLocale);
+    initTitleBar();
+    debugInit('Title bar OK');
 
-  // Update language label
-  const langLabel = document.getElementById('current-lang-label');
-  if (langLabel && window.__dreamSkinLocale) {
-    const key = currentLocale === 'zh-CN' ? 'langZh' : 'langEn';
-    langLabel.textContent = window.__dreamSkinLocale.t(key);
+    initTabs();
+    debugInit('Tabs OK');
+
+    initImport();
+    debugInit('Import OK');
+
+    initBackups();
+    debugInit('Backups OK');
+
+    initSettings();
+    debugInit('Settings OK');
+
+    initEventListeners();
+    debugInit('Events OK');
+
+    initLanguageSwitcher();
+    debugInit('Language switcher OK');
+
+    // Apply current locale to UI
+    const currentLocale = await cds.locale.get();
+    debugInit('Locale get OK: ' + currentLocale);
+    applyLocale(currentLocale);
+
+    // Update language label
+    const langLabel = document.getElementById('current-lang-label');
+    if (langLabel && window.__dreamSkinLocale) {
+      const key = currentLocale === 'zh-CN' ? 'langZh' : 'langEn';
+      langLabel.textContent = window.__dreamSkinLocale.t(key);
+    }
+
+    // Listen for events from main process
+    cds.on('theme-changed', (data) => {
+      activeThemeName = data.name;
+      renderThemeCards();
+      const msgKey = data.name ? 'toastApplied' : 'toastRestored';
+      const msg = data.name
+        ? `${window.__dreamSkinLocale?.t('toastApplied') || 'Theme applied'}: "${data.name}"`
+        : window.__dreamSkinLocale?.t('toastRestored') || 'Restored to default';
+      showToast(msg, 'success');
+    });
+
+    cds.on('injection-status', (status) => {
+      updateInjectionStatus(status);
+    });
+
+    cds.on('claude-status-changed', (status) => {
+      updateClaudeStatus(status);
+    });
+
+    cds.on('injection-event', (event) => {
+      console.log('[Renderer] Injection event:', event);
+    });
+
+    cds.on('refresh-themes', () => {
+      refreshThemeList();
+    });
+
+    cds.on('error', (error) => {
+      showToast(error.message || 'An error occurred', 'error');
+    });
+
+    // Initial load
+    await refreshThemeList();
+    debugInit('Theme list OK');
+    await populateBaseThemeDropdown();
+    debugInit('Dropdown OK');
+    await checkInitialStatus();
+    debugInit('Status check OK');
+
+    // Show a success indicator
+    showDebugIndicator('Ready - all buttons should work');
+    console.log('[Init] ALL DONE');
+  } catch (err) {
+    console.error('[Init] FATAL ERROR:', err);
+    showDebugIndicator('ERROR: ' + err.message);
   }
-
-  // Listen for events from main process
-  cds.on('theme-changed', (data) => {
-    activeThemeName = data.name;
-    renderThemeCards();
-    const msgKey = data.name ? 'toastApplied' : 'toastRestored';
-    const msg = data.name
-      ? `${window.__dreamSkinLocale?.t('toastApplied') || 'Theme applied'}: "${data.name}"`
-      : window.__dreamSkinLocale?.t('toastRestored') || 'Restored to default';
-    showToast(msg, 'success');
-  });
-
-  cds.on('injection-status', (status) => {
-    updateInjectionStatus(status);
-  });
-
-  cds.on('claude-status-changed', (status) => {
-    updateClaudeStatus(status);
-  });
-
-  cds.on('injection-event', (event) => {
-    console.log('[Renderer] Injection event:', event);
-  });
-
-  cds.on('refresh-themes', () => {
-    refreshThemeList();
-  });
-
-  cds.on('error', (error) => {
-    showToast(error.message || 'An error occurred', 'error');
-  });
-
-  // Initial load
-  await refreshThemeList();
-  await populateBaseThemeDropdown();
-  await checkInitialStatus();
 });
+
+let debugTimeout = null;
+function debugInit(msg) {
+  console.log('[Init]', msg);
+  showDebugIndicator(msg);
+}
+
+function showDebugIndicator(msg) {
+  // Remove previous indicator
+  const prev = document.getElementById('ds-debug-indicator');
+  if (prev) prev.remove();
+
+  const el = document.createElement('div');
+  el.id = 'ds-debug-indicator';
+  el.style.cssText = 'position:fixed;top:50px;left:10px;right:10px;background:rgba(0,0,0,0.85);color:#0f0;font:11px monospace;padding:8px;border-radius:4px;z-index:99999;max-height:200px;overflow:auto;white-space:pre-wrap;word-break:break-all;';
+  el.textContent = msg;
+  document.body.appendChild(el);
+
+  if (debugTimeout) clearTimeout(debugTimeout);
+  debugTimeout = setTimeout(() => el.remove(), 3000);
+}
 
 // ── Title Bar ──────────────────────────────────────────────────────────────
 
