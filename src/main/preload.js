@@ -40,6 +40,14 @@ contextBridge.exposeInMainWorld('cds', {
     close: () => ipcRenderer.invoke('window:close'),
   },
 
+  // Locale API
+  locale: {
+    get: () => ipcRenderer.invoke('locale:get'),
+    list: () => ipcRenderer.invoke('locale:list'),
+    set: (locale) => ipcRenderer.invoke('locale:set', locale),
+    t: (key) => ipcRenderer.invoke('locale:t', key),
+  },
+
   // Dialog API
   dialog: {
     openFile: (opts) => ipcRenderer.invoke('dialog:open-file', opts),

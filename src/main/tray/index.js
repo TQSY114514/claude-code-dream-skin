@@ -232,7 +232,6 @@ class SkinManager {
       {
         label: this.claudeRunning ? this.t('claudeRunning') : this.t('claudeNotRunning'),
         enabled: false,
-        icon: this.claudeRunning ? '✅' : '❌',
       },
       {
         label: this.injectionStatus.connected ? this.t('themeActive') : this.t('themeInactive'),
@@ -246,7 +245,7 @@ class SkinManager {
     // Theme submenu
     if (themes.length > 0) {
       const themeSubmenu = themes.map(t => ({
-        label: t.name === currentTheme ? `✓ ${t.displayName || t.name}` : (t.displayName || t.name),
+        label: t.name === currentTheme ? `[${t.displayName || t.name}]` : (t.displayName || t.name),
         click: () => this.switchTheme(t.name),
         type: 'radio',
         checked: t.name === currentTheme,
