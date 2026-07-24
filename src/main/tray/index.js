@@ -183,7 +183,7 @@ class SkinManager {
       minWidth: 400,
       minHeight: 500,
       resizable: true,
-      alwaysOnTop: false,
+      alwaysOnTop: true,  // Always on top to be visible
       skipTaskbar: false,
       frame: false,
       titleBarStyle: 'hidden',
