@@ -104,9 +104,10 @@ class SkinManager {
       this.injector = new CDPInjector(port);
       await this.injector.connect();
 
-      // Get active theme and inject with full metadata
+      // Get active theme
       const theme = this.themeEngine.getActiveTheme();
-      const fullCSS = this.themeEngine.getInjectionCSS(theme.css, theme.backgroundBase64);
+
+      // Build theme meta for the renderer engine
       const themeMeta = {
         name: theme.name,
         displayName: theme.displayName,
@@ -114,7 +115,10 @@ class SkinManager {
         backgroundBase64: theme.backgroundBase64 || null,
         taskMode: theme.taskMode || 'immersive',
       };
-      await this.injector.setTheme(fullCSS, themeMeta);
+
+      // Pass theme CSS (with tokens) — renderer-inject.js will compile at runtime
+      // The skin CSS is already in the renderer-inject.js code
+      await this.injector.setTheme(theme.css, themeMeta);
 
       this.injectionStatus = { connected: true, injecting: false, error: null };
       this.sendToWindow('injection-status', this.injectionStatus);
