@@ -5,7 +5,7 @@
  * and IPC communication with the main process.
  */
 
-const { ipcRenderer } = require('electron');
+// const { ipcRenderer } = require('electron'); // removed: use window.cds (contextBridge)
 const cds = window.cds;
 
 // ── State ──────────────────────────────────────────────────────────────────
