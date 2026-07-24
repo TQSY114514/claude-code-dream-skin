@@ -18,5 +18,6 @@
     "speed": 0.8,
     "sparkleOnClick": true,
     "parallax": true
-  }
+  },
+  "style": "hud"
 }

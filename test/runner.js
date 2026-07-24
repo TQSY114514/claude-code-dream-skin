@@ -531,7 +531,46 @@ function testDynamicEffects() {
         assert(meta.dynamic.particleCount > 0, `${name}: particleCount > 0`);
         assert(meta.dynamic.particleCount <= 100, `${name}: particleCount <= 100`);
       }
+      if (meta.style) {
+        assert(['hud', 'default'].includes(meta.style), `${name}: style is valid value`);
+      }
     }
+  });
+
+  test('dream-skin.css has HUD style variant selectors', () => {
+    const cssPath = path.join(__dirname, '..', 'runtime', 'dream-skin.css');
+    const css = fs.readFileSync(cssPath, 'utf8');
+    assert(css.includes('data-dream-style="hud"'), 'Has HUD style attribute selector');
+    assert(css.includes('[data-dream-style="hud"] __DREAM_SELECTOR_LEFT_PANEL__'), 'HUD styles sidebar');
+    assert(css.includes('[data-dream-style="hud"] __DREAM_SELECTOR_COMPOSER_CHROME__'), 'HUD styles composer');
+    assert(css.includes('[data-dream-style="hud"] __DREAM_SELECTOR_SEND_BUTTON__'), 'HUD styles send button');
+  });
+
+  test('dream-skin.css has HUD corner bracket elements', () => {
+    const cssPath = path.join(__dirname, '..', 'runtime', 'dream-skin.css');
+    const css = fs.readFileSync(cssPath, 'utf8');
+    assert(css.includes('.ds-corner-bracket'), 'Has corner bracket class');
+    assert(css.includes('.ds-corner-bracket--tl'), 'Has top-left bracket');
+    assert(css.includes('.ds-corner-bracket--br'), 'Has bottom-right bracket');
+    assert(css.includes('.ds-status-dot'), 'Has status dot class');
+    assert(css.includes('.ds-status-dot--online'), 'Has online status');
+  });
+
+  test('dream-skin.css has neon glow and CRT effects', () => {
+    const cssPath = path.join(__dirname, '..', 'runtime', 'dream-skin.css');
+    const css = fs.readFileSync(cssPath, 'utf8');
+    assert(css.includes('ds-neon-flicker'), 'Has neon flicker animation');
+    assert(css.includes('text-shadow'), 'Neon uses text-shadow');
+    assert(css.includes('repeating-linear-gradient'), 'Has scan line effect');
+    assert(css.includes('ds-reticle-pulse'), 'Has reticle animation');
+  });
+
+  test('renderer-inject.js passes style meta to HTML', () => {
+    const injectPath = path.join(__dirname, '..', 'runtime', 'renderer-inject.js');
+    const code = fs.readFileSync(injectPath, 'utf8');
+    assert(code.includes('data-dream-style'), 'Sets data-dream-style attribute');
+    assert(code.includes("meta.style === 'hud'"), 'Checks style meta');
+    assert(code.includes('removeAttribute') && code.includes('data-dream-style'), 'Removes style on cleanup');
   });
 }
 

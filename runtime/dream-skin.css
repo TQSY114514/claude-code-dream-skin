@@ -54,6 +54,8 @@
 }
 
 html[data-dream-skin="active"][data-dream-shell="light"] {
+
+html[data-dream-skin="active"][data-dream-shell="light"] {
   color-scheme: light !important;
   --ds-bg: #f3f5f6;
   --ds-panel: #fafbfb;
@@ -140,6 +142,66 @@ html[data-dream-skin="active"] __DREAM_SELECTOR_LEFT_PANEL__ [aria-current="page
   color: var(--ds-text) !important;
 }
 html[data-dream-skin="active"] __DREAM_SELECTOR_LEFT_PANEL__ [aria-current="page"] svg { color: var(--ds-accent) !important; }
+
+/* ── HUD Style Variant ── */
+/* Activated when data-dream-style="hud" is set by the renderer engine.
+   Inspired by the anime cyberpunk HUD aesthetic from Codex Dream Skin. */
+
+html[data-dream-skin="active"][data-dream-style="hud"] __DREAM_SELECTOR_LEFT_PANEL__ {
+  border-right: 1px solid rgb(var(--ds-accent-rgb) / .25) !important;
+  background:
+    linear-gradient(180deg, rgb(var(--ds-panel-rgb) / .98), rgb(var(--ds-bg-rgb) / .96)) !important;
+}
+html[data-dream-skin="active"][data-dream-style="hud"] __DREAM_SELECTOR_LEFT_PANEL__ nav {
+  background: transparent !important;
+  border-top: 1px solid rgb(var(--ds-accent-rgb) / .10) !important;
+}
+html[data-dream-skin="active"][data-dream-style="hud"] __DREAM_SELECTOR_LEFT_PANEL__ button,
+html[data-dream-skin="active"][data-dream-style="hud"] __DREAM_SELECTOR_LEFT_PANEL__ a {
+  border-left: 2px solid transparent !important;
+  transition: all .2s ease !important;
+}
+html[data-dream-skin="active"][data-dream-style="hud"] __DREAM_SELECTOR_LEFT_PANEL__ button:hover,
+html[data-dream-skin="active"][data-dream-style="hud"] __DREAM_SELECTOR_LEFT_PANEL__ a:hover {
+  border-left-color: var(--ds-accent) !important;
+  background: rgb(var(--ds-accent-rgb) / .08) !important;
+}
+html[data-dream-skin="active"][data-dream-style="hud"] __DREAM_SELECTOR_LEFT_PANEL__ [aria-current="page"] {
+  border-left-color: var(--ds-accent) !important;
+  background: linear-gradient(90deg, rgb(var(--ds-accent-rgb) / .15), transparent) !important;
+  box-shadow: none !important;
+}
+
+html[data-dream-skin="active"][data-dream-style="hud"] __DREAM_SELECTOR_COMPOSER_CHROME__ {
+  border: 1px solid rgb(var(--ds-accent-rgb) / .20) !important;
+  border-radius: 8px !important;
+  box-shadow: 0 0 15px rgb(var(--ds-accent-rgb) / .05) !important;
+  transition: border-color .3s ease, box-shadow .3s ease !important;
+}
+html[data-dream-skin="active"][data-dream-style="hud"] __DREAM_SELECTOR_COMPOSER_CHROME__:focus-within {
+  border-color: rgb(var(--ds-accent-rgb) / .45) !important;
+  box-shadow: 0 0 20px rgb(var(--ds-accent-rgb) / .10) !important;
+}
+
+html[data-dream-skin="active"][data-dream-style="hud"] __DREAM_SELECTOR_SEND_BUTTON__ {
+  border: 1px solid rgb(var(--ds-accent-rgb) / .30) !important;
+  border-radius: 8px !important;
+  text-shadow: 0 0 6px var(--ds-accent) !important;
+  box-shadow: 0 0 10px rgb(var(--ds-accent-rgb) / .10) !important;
+  transition: all .2s ease !important;
+}
+html[data-dream-skin="active"][data-dream-style="hud"] __DREAM_SELECTOR_SEND_BUTTON__:hover {
+  background: rgb(var(--ds-accent-rgb) / .15) !important;
+  border-color: var(--ds-accent) !important;
+  box-shadow: 0 0 18px rgb(var(--ds-accent-rgb) / .20) !important;
+  text-shadow: 0 0 10px var(--ds-accent) !important;
+}
+
+/* Neon glow for active sidebar items in HUD mode */
+html[data-dream-skin="active"][data-dream-style="hud"] __DREAM_SELECTOR_LEFT_PANEL__ [aria-current="page"],
+html[data-dream-skin="active"][data-dream-style="hud"] __DREAM_SELECTOR_LEFT_PANEL__:hover {
+  text-shadow: 0 0 8px rgb(var(--ds-accent-rgb) / .5) !important;
+}
 
 /* ── Shell Main ── */
 html[data-dream-skin="active"] __DREAM_SELECTOR_SHELL_MAIN__ {
@@ -688,7 +750,125 @@ html[data-dream-skin="active"][data-dream-dynamic="on"]
   50% { background-position: -200% 0; }
 }
 
-/* ── Animations ── */
+/* ── Anime HUD / Cyberpunk Styling ── */
+/* Pixel-art inspired UI elements, HUD panels, status indicators,
+   corner brackets, neon borders, heart animations. */
+
+/* CRT scan line overlay for themes with animated/pixel aesthetic */
+html[data-dream-skin="active"] __DREAM_SELECTOR_SHELL_MAIN__:not(:has(__DREAM_SELECTOR_HOME_ROUTE__)) {
+  position: relative;
+}
+html[data-dream-skin="active"][data-dream-dynamic="on"]
+  __DREAM_SELECTOR_SHELL_MAIN__:not(:has(__DREAM_SELECTOR_HOME_ROUTE__))::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgb(var(--ds-bg-rgb) / .015) 2px,
+    rgb(var(--ds-bg-rgb) / .015) 4px
+  );
+  opacity: 0.5;
+}
+
+/* Neon border glow for cards and panels */
+html[data-dream-skin="active"] [class*="card"],
+html[data-dream-skin="active"] [class*="Card"],
+html[data-dream-skin="active"] article {
+  border: 1px solid rgb(var(--ds-accent-rgb) / .20) !important;
+  box-shadow: 0 0 12px rgb(var(--ds-accent-rgb) / .06), inset 0 0 12px rgb(var(--ds-accent-rgb) / .03) !important;
+  transition: border-color .3s ease, box-shadow .3s ease !important;
+}
+html[data-dream-skin="active"][data-dream-dynamic="on"] [class*="card"]:hover,
+html[data-dream-skin="active"][data-dream-dynamic="on"] [class*="Card"]:hover,
+html[data-dream-skin="active"][data-dream-dynamic="on"] article:hover {
+  border-color: rgb(var(--ds-accent-rgb) / .45) !important;
+  box-shadow: 0 0 20px rgb(var(--ds-accent-rgb) / .10), inset 0 0 20px rgb(var(--ds-accent-rgb) / .05) !important;
+  animation: ds-border-glow 2s ease-in-out infinite;
+}
+
+/* Corner bracket decorations */
+.ds-corner-bracket {
+  position: absolute;
+  width: 12px; height: 12px;
+  z-index: 3;
+  pointer-events: none;
+  opacity: 0.5;
+}
+.ds-corner-bracket::before, .ds-corner-bracket::after {
+  content: '';
+  position: absolute;
+  background: var(--ds-accent);
+}
+.ds-corner-bracket--tl { top: 6px; left: 6px; }
+.ds-corner-bracket--tl::before { width: 12px; height: 1.5px; top: 0; left: 0; }
+.ds-corner-bracket--tl::after  { width: 1.5px; height: 12px; top: 0; left: 0; }
+.ds-corner-bracket--tr { top: 6px; right: 6px; }
+.ds-corner-bracket--tr::before { width: 12px; height: 1.5px; top: 0; right: 0; }
+.ds-corner-bracket--tr::after  { width: 1.5px; height: 12px; top: 0; right: 0; }
+.ds-corner-bracket--bl { bottom: 6px; left: 6px; }
+.ds-corner-bracket--bl::before { width: 12px; height: 1.5px; bottom: 0; left: 0; }
+.ds-corner-bracket--bl::after  { width: 1.5px; height: 12px; bottom: 0; left: 0; }
+.ds-corner-bracket--br { bottom: 6px; right: 6px; }
+.ds-corner-bracket--br::before { width: 12px; height: 1.5px; bottom: 0; right: 0; }
+.ds-corner-bracket--br::after  { width: 1.5px; height: 12px; bottom: 0; right: 0; }
+
+html[data-dream-skin="active"][data-dream-dynamic="on"] .ds-corner-bracket {
+  animation: ds-corner-pulse 3s ease-in-out infinite;
+}
+
+/* Status indicator dots */
+.ds-status-dot {
+  display: inline-block;
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--ds-accent);
+  color: var(--ds-accent);
+  animation: ds-status-blink 2s ease-in-out infinite;
+}
+.ds-status-dot--online { background: #22c55e; color: #22c55e; }
+.ds-status-dot--busy { background: #f59e0b; color: #f59e0b; }
+.ds-status-dot--offline { background: #ef4444; color: #ef4444; animation: none; opacity: 0.5; }
+
+/* Custom cursor for dynamic themes */
+html[data-dream-skin="active"][data-dream-dynamic="on"] {
+  cursor: crosshair !important;
+}
+html[data-dream-skin="active"][data-dream-dynamic="on"] a,
+html[data-dream-skin="active"][data-dream-dynamic="on"] button {
+  cursor: pointer !important;
+}
+
+/* Neon flicker for headings */
+html[data-dream-skin="active"][data-dream-dynamic="on"] h1,
+html[data-dream-skin="active"][data-dream-dynamic="on"] h2 {
+  text-shadow:
+    0 0 7px var(--ds-accent),
+    0 0 10px var(--ds-accent),
+    0 0 21px var(--ds-accent) !important;
+}
+html[data-dream-skin="active"][data-dream-dynamic="on"] [class*="text-token-text-primary"],
+html[data-dream-skin="active"][data-dream-dynamic="on"] strong {
+  text-shadow: 0 0 5px rgb(var(--ds-accent-rgb) / .3) !important;
+}
+
+/* Pixel font for display text (via CSS) */
+html[data-dream-skin="active"] {
+  --ds-font-pixel: 'Courier New', 'Consolas', 'Monaco', monospace;
+}
+
+/* ── Dynamic effects CSS variables ── */
+  --ds-particle-count: 40;
+  --ds-particle-speed: 1;
+  --ds-particle-duration: 8s;
+  --ds-particle-opacity: 0.55;
+  --ds-glow-duration: 12s;
+  --ds-dynamic-enabled: 0;
+}
 @keyframes ds-spin { to { transform: rotate(360deg); } }
 @keyframes ds-pulse {
   0%, 100% { opacity: 1; }
@@ -708,6 +888,10 @@ html[data-dream-skin="active"][data-dream-dynamic="on"]
   90% { opacity: 0.6; }
   to { transform: translateY(-100vh) translateX(20px); opacity: 0; }
 }
+@keyframes ds-text-shimmer {
+  0% { background-position: -200% center; }
+  100% { background-position: 200% center; }
+}
 @keyframes ds-twinkle {
   0%, 100% { opacity: 0; transform: scale(0.5); }
   50% { opacity: 0.9; transform: scale(1.2); }
@@ -722,7 +906,34 @@ html[data-dream-skin="active"][data-dream-dynamic="on"]
   0%, 100% { border-color: rgb(var(--ds-accent-rgb) / .15); }
   50% { border-color: rgb(var(--ds-accent-rgb) / .45); }
 }
-@keyframes ds-text-shimmer {
-  0% { background-position: -200% center; }
-  100% { background-position: 200% center; }
+@keyframes ds-heart-beat {
+  0%, 100% { transform: scale(1); }
+  14% { transform: scale(1.2); }
+  28% { transform: scale(1); }
+  42% { transform: scale(1.1); }
+  56% { transform: scale(1); }
+}
+@keyframes ds-status-blink {
+  0%, 100% { opacity: 1; box-shadow: 0 0 4px currentColor; }
+  50% { opacity: 0.3; box-shadow: 0 0 1px currentColor; }
+}
+@keyframes ds-pixel-scroll {
+  0% { background-position: 0 0; }
+  100% { background-position: 0 100px; }
+}
+@keyframes ds-typing-cursor {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+@keyframes ds-neon-flicker {
+  0%, 19.999%, 22%, 62.999%, 64%, 64.999%, 70%, 100% { opacity: 1; }
+  20%, 21.999%, 63%, 63.999%, 65%, 69.999% { opacity: 0.4; }
+}
+@keyframes ds-reticle-pulse {
+  0%, 100% { transform: scale(1); opacity: 0.6; }
+  50% { transform: scale(1.5); opacity: 0.2; }
+}
+@keyframes ds-corner-pulse {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 0.9; }
 }

@@ -238,6 +238,7 @@
     html.removeAttribute('data-dream-art-task-mode');
     html.removeAttribute('data-dream-no-has');
     html.removeAttribute('data-dream-dynamic');
+    html.removeAttribute('data-dream-style');
     const tagEl = document.querySelector('.ds-tagline');
     if (tagEl) tagEl.remove();
     try { sessionStorage.removeItem('__dreamSkin_bg'); } catch (_) {}
@@ -328,6 +329,9 @@
 
     // Set attribute
     document.documentElement.setAttribute('data-dream-dynamic', 'on');
+    if (meta.style === 'hud') {
+      document.documentElement.setAttribute('data-dream-style', 'hud');
+    }
 
     // Create glow blobs
     const glowCount = meta.dynamic.glowCount || 3;
@@ -403,7 +407,9 @@
       dynamicCleanup();
       dynamicCleanup = null;
     }
+    document.documentElement.removeAttribute('data-dream-style');
   }
+
   function watchShellChange() {
     const html = document.documentElement;
     const observer = new MutationObserver(() => {
