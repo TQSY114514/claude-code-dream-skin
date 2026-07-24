@@ -7,11 +7,13 @@ const net = require('net');
 /**
  * Detects Claude Desktop installation path and manages the process lifecycle.
  *
- * Claude Desktop on Windows is installed as an MSIX package:
- *   C:\Program Files\WindowsApps\Claude_<version>_x64__<publisherId>\app\Claude.exe
- *
- * We cannot modify the MSIX installation. Instead, we relaunch Claude
- * with --remote-debugging-port=9222 to enable CDP-based theme injection.
+ * Uses multiple strategies to find Claude Desktop:
+ *   1. Environment variable (CLAUDE_DESKTOP_PATH)
+ *   2. Running process via WMIC
+ *   3. Windows Registry uninstall entries
+ *   4. Start Menu .lnk shortcut
+ *   5. PowerShell Get-StartApps
+ *   6. WindowsApps directory scan across drives
  */
 class ProcessManager {
   constructor() {
@@ -22,36 +24,124 @@ class ProcessManager {
   }
 
   /**
+   * Read target path from a Windows .lnk shortcut.
+   */
+  _readLnkTarget(lnkPath) {
+    try {
+      const tmpJs = path.join(os.tmpdir(), '_ds_readlnk.js');
+      const safePath = lnkPath.replace(/'/g, "''");
+      fs.writeFileSync(tmpJs,
+        "var shell = new ActiveXObject('WScript.Shell');\n" +
+        "var lnk = shell.CreateShortcut('" + safePath + "');\n" +
+        "WScript.Echo(lnk.TargetPath);\n"
+      );
+      try {
+        const output = execSync('cscript //Nologo //E:jscript ' + tmpJs, {
+          encoding: 'utf8', timeout: 3000, shell: 'cmd.exe', stdio: ['pipe', 'pipe', 'ignore']
+        });
+        const target = output.trim();
+        if (target && fs.existsSync(target)) return target;
+      } catch (e) {}
+      try { fs.unlinkSync(tmpJs); } catch (e) {}
+    } catch (e) {}
+    return null;
+  }
+
+  /**
    * Find Claude Desktop installation path.
-   * Priority:
-   *   1. Explicit path from environment/registry
-   *   2. WindowsApps directory scan
-   *   3. Known common paths
+   * Tries multiple strategies in order of speed.
    */
   findClaudePath() {
-    // Check if user configured a custom path
+    // Strategy 1: Environment variable override
     const customPath = process.env.CLAUDE_DESKTOP_PATH;
     if (customPath && fs.existsSync(customPath)) {
       return { path: customPath, source: 'custom' };
     }
 
-    // Scan WindowsApps for Claude MSIX — check multiple drive locations
-    const windowsAppsPaths = [
-      path.join('C:', 'Program Files', 'WindowsApps'),
-      path.join('D:', 'WindowsApps'),
-      path.join('E:', 'WindowsApps'),
-    ];
+    // Strategy 2: WMIC - check running process (fastest if Claude is running)
+    try {
+      const output = execSync(
+        'wmic process where "name=\'Claude.exe\'" get ExecutablePath /format:list',
+        { encoding: 'utf8', timeout: 3000 }
+      );
+      const match = output.match(/ExecutablePath\s*=\s*(.+)/);
+      if (match && fs.existsSync(match[1].trim())) {
+        return { path: match[1].trim(), source: 'running-process' };
+      }
+    } catch (e) {
+      // Not running or WMIC not available
+    }
 
-    for (const windowsApps of windowsAppsPaths) {
-      if (!fs.existsSync(windowsApps)) continue;
+    // Strategy 3: Windows Registry - uninstall entries
+    try {
+      const output = execSync(
+        'reg query "HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall" /s /f "Claude" /reg:64',
+        { encoding: 'utf8', timeout: 5000, shell: 'cmd.exe' }
+      );
+      const lines = output.split('\n');
+      for (let i = 0; i < lines.length; i++) {
+        const trimmed = lines[i].trim();
+        if (/^(InstallLocation|DisplayIcon)/.test(trimmed)) {
+          const parts = trimmed.split(/\s{2,}/);
+          const val = parts[1];
+          if (!val) continue;
+          let candidate = val;
+          if (!candidate.endsWith('.exe')) {
+            candidate = path.join(candidate, 'app', 'Claude.exe');
+          }
+          if (fs.existsSync(candidate)) {
+            return { path: candidate, source: 'registry' };
+          }
+        }
+      }
+    } catch (e) {
+      // Registry not available
+    }
+
+    // Strategy 4: Start Menu shortcut (works even if app is not running)
+    try {
+      const lnkPath = path.join(os.homedir(), 'AppData', 'Roaming',
+        'Microsoft', 'Windows', 'Start Menu', 'Programs', 'Claude.lnk');
+      if (fs.existsSync(lnkPath)) {
+        const target = this._readLnkTarget(lnkPath);
+        if (target && fs.existsSync(target)) {
+          return { path: target, source: 'shortcut' };
+        }
+      }
+    } catch (e) {
+      // Shortcut parsing failed
+    }
+
+    // Strategy 5: PowerShell Get-StartApps
+    try {
+      const output = execSync(
+        'powershell -NoProfile -Command "Get-StartApps -Name *Claude* -ErrorAction SilentlyContinue | Select-Object -ExpandProperty InstallLocation"',
+        { encoding: 'utf8', timeout: 8000, shell: 'cmd.exe' }
+      );
+      const loc = output.trim();
+      if (loc && fs.existsSync(loc)) {
+        const exe = path.join(loc, 'app', 'Claude.exe');
+        if (fs.existsSync(exe)) {
+          return { path: exe, source: 'shell-apps' };
+        }
+      }
+    } catch (e) {
+      // PowerShell not available
+    }
+
+    // Strategy 6: Scan WindowsApps across all drives
+    const drives = ['C:', 'D:', 'E:', 'F:', 'G:'];
+    for (const drive of drives) {
+      const wa = path.join(drive, 'WindowsApps');
+      if (!fs.existsSync(wa)) continue;
       try {
-        const dirs = fs.readdirSync(windowsApps);
+        const dirs = fs.readdirSync(wa);
         for (const d of dirs) {
           if (d.startsWith('Claude_')) {
-            const exePath = path.join(windowsApps, d, 'app', 'Claude.exe');
-            if (fs.existsSync(exePath)) {
+            const exe = path.join(wa, d, 'app', 'Claude.exe');
+            if (fs.existsSync(exe)) {
               return {
-                path: exePath,
+                path: exe,
                 source: 'windows-apps',
                 version: d.replace('Claude_', '').replace(/_x64__.*$/, '')
               };
@@ -59,22 +149,8 @@ class ProcessManager {
           }
         }
       } catch (e) {
-        // Permission error reading this WindowsApps directory, try next
+        // Permission denied on this drive
       }
-    }
-
-    // Fallback: use WMIC to find it
-    try {
-      const output = execSync(
-        'wmic process where "name=\'Claude.exe\'" get ExecutablePath /format:list',
-        { encoding: 'utf8', timeout: 5000 }
-      );
-      const match = output.match(/ExecutablePath\s*=\s*(.+)/);
-      if (match && fs.existsSync(match[1].trim())) {
-        return { path: match[1].trim(), source: 'wmic' };
-      }
-    } catch (e) {
-      // WMIC failed
     }
 
     return null;
@@ -84,8 +160,6 @@ class ProcessManager {
    * Find Claude Desktop user data directory.
    */
   findUserDataDir() {
-    // Try localappdata\Claude-3p (standard for the Store/MSIX version)
-
     const candidates = [
       path.join(os.homedir(), 'AppData', 'Local', 'Claude-3p'),
       path.join('D:', 'Claude-3p'),
@@ -94,7 +168,8 @@ class ProcessManager {
     for (const dir of candidates) {
       if (fs.existsSync(dir)) return dir;
     }
-// Try wmic for user-data-dir
+
+    // Try WMIC to extract from running process command line
     try {
       const output = execSync(
         'wmic process where "name=\'Claude.exe\'" get CommandLine /format:list',
@@ -146,37 +221,30 @@ class ProcessManager {
   }
 
   /**
-   * Find the PID of the main Claude Desktop process (not helper processes).
+   * Find the PID of the main Claude Desktop process.
    */
   findClaudePid() {
     try {
-      // Use WMIC to get processes with their command lines
       const output = execSync(
         'wmic process where "name=\'Claude.exe\'" get ProcessId,CommandLine /format:csv',
         { encoding: 'utf8', timeout: 5000 }
       );
-      const lines = output.trim().split('\n').slice(1); // skip header
+      const lines = output.trim().split('\n').slice(1);
       for (const line of lines) {
         const parts = line.trim().split(',');
         if (parts.length >= 3 && parts[2]) {
           const cmdline = parts.slice(2).join(',').trim();
-          // Main process has --app-path argument and --type=renderer or no --type
           if (!cmdline.includes('--type=') || cmdline.includes('--type=renderer')) {
             const pid = parseInt(parts[1]);
-            if (!isNaN(pid)) {
-              return pid;
-            }
+            if (!isNaN(pid)) return pid;
           }
         }
       }
-      // Fallback: return first PID
       const firstMatch = lines[0]?.trim().split(',');
       if (firstMatch && firstMatch[1]) {
         return parseInt(firstMatch[1]);
       }
-    } catch (e) {
-      // Ignore
-    }
+    } catch (e) {}
     return null;
   }
 
@@ -186,7 +254,6 @@ class ProcessManager {
   killClaude() {
     try {
       execSync('taskkill /F /IM Claude.exe 2>nul', { timeout: 5000, stdio: 'pipe' });
-      // Wait for process to fully terminate
       return new Promise(resolve => {
         let attempts = 0;
         const check = () => {
@@ -204,9 +271,6 @@ class ProcessManager {
 
   /**
    * Launch Claude Desktop with --remote-debugging-port.
-   *
-   * On Windows, we use cmd.exe /C start to launch so the process
-   * becomes independent of our Node process.
    */
   launchWithCDP(debugPort) {
     return new Promise((resolve, reject) => {
@@ -220,31 +284,25 @@ class ProcessManager {
       const exePath = info.path;
       const dataDir = this.findUserDataDir();
 
-      // Check if port is already in use (another instance with CDP already running)
       this.isPortInUse(port).then(inUse => {
         if (inUse) {
           console.log(`[ProcessManager] CDP port ${port} already in use, connecting to existing instance`);
           return resolve({ launcher: 'existing', port });
         }
 
-        // Kill existing Claude processes
         console.log('[ProcessManager] Stopping existing Claude Desktop...');
         this.killClaude().then(() => {
-          // Small delay after killing
           setTimeout(() => {
             try {
-              const args = [`--remote-debugging-port=${port}`];
+              const args = ['--remote-debugging-port=' + port];
               if (dataDir) {
-                args.push(`--user-data-dir="${dataDir}"`);
+                args.push('--user-data-dir="' + dataDir + '"');
               }
 
-              // Launch via shell so the app can interact with Windows shell
-              const shell = os.platform() === 'win32' ? 'cmd.exe' : '';
-              const shellArgs = os.platform() === 'win32'
-                ? ['/C', 'start', '"ClaudeCodeCDP"', exePath, ...args]
-                : args;
+              // Build a single command string for exec()
+              const cmdLine = 'cmd.exe /C start "ClaudeCodeCDP" "' + exePath + '" ' + args.join(' ');
 
-              exec(shell, { args: shellArgs }, (error) => {
+              exec(cmdLine, { windowsHide: true }, (error) => {
                 if (error) {
                   console.error('[ProcessManager] Launch error:', error);
                   return reject(error);
@@ -271,7 +329,7 @@ class ProcessManager {
     while (Date.now() - start < timeout) {
       try {
         const data = await new Promise((resolve, reject) => {
-          http.get(`http://127.0.0.1:${port}/json/version`, { timeout: 2000 }, (res) => {
+          http.get('http://127.0.0.1:' + port + '/json/version', { timeout: 2000 }, (res) => {
             let body = '';
             res.on('data', d => body += d);
             res.on('end', () => {
@@ -290,7 +348,7 @@ class ProcessManager {
       await new Promise(r => setTimeout(r, 500));
     }
 
-    throw new Error(`CDP endpoint not available on port ${port} within ${timeout}ms`);
+    throw new Error('CDP endpoint not available on port ' + port + ' within ' + timeout + 'ms');
   }
 }
 
