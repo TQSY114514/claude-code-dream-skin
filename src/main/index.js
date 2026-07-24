@@ -52,6 +52,12 @@ ipcMain.handle('theme:export', (_, name) => {
   const defaultPath = path.join(app.getPath('downloads'), `${name}-theme.zip`);
   return skinManager.themeEngine.exportTheme(name, defaultPath);
 });
+ipcMain.handle('theme:set-background', (_, name, imagePath) =>
+  skinManager.themeEngine.setBackgroundImage(name, imagePath)
+);
+ipcMain.handle('theme:remove-background', (_, name) =>
+  skinManager.themeEngine.removeBackgroundImage(name)
+);
 
 // Backup operations
 ipcMain.handle('backup:list', () => skinManager.themeEngine.listBackups());

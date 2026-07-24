@@ -11,6 +11,8 @@ contextBridge.exposeInMainWorld('cds', {
     delete: (name) => ipcRenderer.invoke('theme:delete', name),
     create: (name, baseTheme) => ipcRenderer.invoke('theme:create', name, baseTheme),
     export: (name) => ipcRenderer.invoke('theme:export', name),
+    setBackground: (name, imagePath) => ipcRenderer.invoke('theme:set-background', name, imagePath),
+    removeBackground: (name) => ipcRenderer.invoke('theme:remove-background', name),
   },
 
   // Backup API

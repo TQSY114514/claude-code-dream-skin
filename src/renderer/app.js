@@ -170,6 +170,7 @@ function renderThemeCards() {
         <div class="theme-card-badge ${isActive ? 'active-badge' : ''}">${isActive ? 'Active' : (theme.version || '1.0.0')}</div>
         <div class="theme-card-actions">
           <button class="theme-card-action-btn" onclick="window.applyTheme('${theme.name}')">Apply</button>
+          <button class="theme-card-action-btn" onclick="window.uploadBg('${theme.name}')" title="Set background image">🖼</button>
           <button class="theme-card-action-btn danger" onclick="window.deleteTheme('${theme.name}')">Delete</button>
         </div>
       </div>
@@ -230,6 +231,24 @@ async function deleteTheme(name) {
 
 // Expose to inline onclick handlers
 window.applyTheme = applyTheme;
+window.uploadBg = async function(name) {
+  try {
+    const result = await cds.dialog.openFile({
+      properties: ['openFile'],
+      filters: [{ name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'webp'] }],
+    });
+    if (result.canceled || !result.filePaths.length) return;
+    const r = await cds.themes.setBackground(name, result.filePaths[0]);
+    if (r.ok) {
+      showToast('Background image set!', 'success');
+      await applyTheme(name);
+    } else {
+      showToast(r.error || 'Failed to set background', 'error');
+    }
+  } catch (e) {
+    showToast('Failed to upload background', 'error');
+  }
+};
 window.deleteTheme = deleteTheme;
 
 // ── Import ─────────────────────────────────────────────────────────────────

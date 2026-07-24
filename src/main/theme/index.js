@@ -69,6 +69,59 @@ class ThemeEngine {
     }
   }
 
+  setBackgroundImage(name, imagePath) {
+    const themeDir = path.join(THEMES_DIR, name);
+    if (!fs.existsSync(themeDir)) {
+      return { ok: false, error: `Theme "${name}" not found` };
+    }
+
+    try {
+      const artDir = path.join(themeDir, 'art');
+      if (!fs.existsSync(artDir)) fs.mkdirSync(artDir, { recursive: true });
+
+      // Clean old art files
+      for (const f of fs.readdirSync(artDir)) {
+        fs.unlinkSync(path.join(artDir, f));
+      }
+
+      // Copy new image (limit size to 10MB)
+      const stats = fs.statSync(imagePath);
+      if (stats.size > 10 * 1024 * 1024) {
+        return { ok: false, error: 'Image too large (max 10MB)' };
+      }
+
+      const ext = path.extname(imagePath).toLowerCase();
+      const allowed = ['.png', '.jpg', '.jpeg', '.webp'];
+      if (!allowed.includes(ext)) {
+        return { ok: false, error: 'Unsupported format. Use PNG, JPG, or WebP' };
+      }
+
+      const destName = `background${ext}`;
+      fs.copyFileSync(imagePath, path.join(artDir, destName));
+
+      return { ok: true, path: path.join(artDir, destName) };
+    } catch (e) {
+      return { ok: false, error: e.message };
+    }
+  }
+
+  removeBackgroundImage(name) {
+    const themeDir = path.join(THEMES_DIR, name);
+    if (!fs.existsSync(themeDir)) return { ok: false, error: 'Theme not found' };
+
+    const artDir = path.join(themeDir, 'art');
+    if (!fs.existsSync(artDir)) return { ok: true };
+
+    try {
+      for (const f of fs.readdirSync(artDir)) {
+        fs.unlinkSync(path.join(artDir, f));
+      }
+      return { ok: true };
+    } catch (e) {
+      return { ok: false, error: e.message };
+    }
+  }
+
   loadTheme(name) {
     const themeDir = path.join(THEMES_DIR, name);
     if (!fs.existsSync(themeDir)) return null;
@@ -243,7 +296,29 @@ class ThemeEngine {
     }
   }
 
-  getInjectionCSS(themeCSS) {
+  getInjectionCSS(themeCSS, backgroundBase64) {
+    const bgRules = backgroundBase64
+      ? `
+/* Background image layer */
+.dream-skin-active {
+  background: var(--ds-bg) url(${backgroundBase64}) center/cover no-repeat fixed !important;
+}
+.dream-skin-active [class*="sidebar"],
+.dream-skin-active [class*="Sidebar"],
+.dream-skin-active aside,
+.dream-skin-active nav {
+  background: rgba(var(--ds-panel-rgb, 20,20,23), 0.85) !important;
+  backdrop-filter: blur(12px) saturate(1.4) !important;
+  -webkit-backdrop-filter: blur(12px) saturate(1.4) !important;
+}
+.dream-skin-active [class*="message"] {
+  background: rgba(var(--ds-surface-rgb, 26,26,31), 0.75) !important;
+  backdrop-filter: blur(8px) !important;
+  -webkit-backdrop-filter: blur(8px) !important;
+}
+`
+      : '';
+
     const claudeSpecificRules = `
 /* Claude Code Desktop specific overrides */
 .dream-skin-active {

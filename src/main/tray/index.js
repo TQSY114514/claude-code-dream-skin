@@ -106,7 +106,7 @@ class SkinManager {
 
       // Get active theme and inject
       const theme = this.themeEngine.getActiveTheme();
-      const fullCSS = this.themeEngine.getInjectionCSS(theme.css);
+      const fullCSS = this.themeEngine.getInjectionCSS(theme.css, theme.backgroundBase64);
       await this.injector.setTheme(fullCSS);
 
       this.injectionStatus = { connected: true, injecting: false, error: null };
@@ -252,7 +252,7 @@ class SkinManager {
     // Inject new theme if connected
     if (this.injector && this.injectionStatus.connected) {
       const theme = this.themeEngine.getActiveTheme();
-      const fullCSS = this.themeEngine.getInjectionCSS(theme.css);
+      const fullCSS = this.themeEngine.getInjectionCSS(theme.css, theme.backgroundBase64);
       await this.injector.setTheme(fullCSS);
     }
 
