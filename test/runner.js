@@ -239,6 +239,239 @@ async function testCDPInjector() {
         'Error is connection-related: ' + e.message);
     }
   });
+
+  test('CDPInjector loads renderer-inject.js', () => {
+    const CDPInjector = require('../src/main/injector');
+    const injector = new CDPInjector(19999);
+    assert(injector._injectorCode.length > 0, 'Injector code is loaded');
+    assert(injector._injectorCode.includes('SELECTORS'), 'Contains selector code');
+    assert(injector._injectorCode.includes('analyzeImage'), 'Contains image analysis');
+  });
+}
+
+// ── Selector Compilation Tests ────────────────────────────────────────────
+
+function testSelectorCompilation() {
+  console.log('\n🎯 Selector Compilation');
+
+  test('selectors.json loads and has correct schema', () => {
+    const selectorsPath = path.join(__dirname, '..', 'tools', 'selectors.json');
+    const data = JSON.parse(fs.readFileSync(selectorsPath, 'utf8'));
+    assert.strictEqual(data.schema, 'claude-dream-skin-selectors/1', 'Schema version correct');
+    assert(data.selectors.length >= 10, 'Has at least 10 selectors');
+    assert(Array.isArray(data.themeVariables), 'Has theme variables array');
+    assert(data.themeVariables.length >= 30, 'Has at least 30 theme variables');
+  });
+
+  test('all selectors have required fields', () => {
+    const selectorsPath = path.join(__dirname, '..', 'tools', 'selectors.json');
+    const data = JSON.parse(fs.readFileSync(selectorsPath, 'utf8'));
+    for (const s of data.selectors) {
+      assert(s.key, `Selector has key: ${s.key}`);
+      assert(s.selector, `Selector "${s.key}" has selector string`);
+      assert(['L1', 'L2'].includes(s.tier), `Selector "${s.key}" has valid tier`);
+      assert(s.scope, `Selector "${s.key}" has scope`);
+    }
+  });
+
+  test('sync-runtime-assets.mjs compiles without errors', async () => {
+    const { execSync } = require('child_process');
+    const result = execSync('node tools/sync-runtime-assets.mjs', {
+      cwd: path.join(__dirname, '..'),
+      encoding: 'utf8',
+    });
+    assert(result.includes('Done'), 'Output indicates success');
+  });
+
+  test('compiled CSS has no unresolved tokens (except in comments)', () => {
+    const compiledPath = path.join(__dirname, '..', 'runtime', 'dream-skin-compiled.css');
+    if (!fs.existsSync(compiledPath)) {
+      // Run build first
+      const { execSync } = require('child_process');
+      execSync('node tools/sync-runtime-assets.mjs', {
+        cwd: path.join(__dirname, '..'),
+        encoding: 'utf8',
+      });
+    }
+    const css = fs.readFileSync(compiledPath, 'utf8');
+    const lines = css.split('\n');
+    let unresolvedInRules = 0;
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (trimmed.startsWith('/*') || trimmed.startsWith('*') || trimmed.startsWith('//')) continue;
+      if (trimmed.includes('__DREAM_SELECTOR')) {
+        unresolvedInRules++;
+      }
+    }
+    assert.strictEqual(unresolvedInRules, 0, `No unresolved tokens in CSS rules (found ${unresolvedInRules})`);
+  });
+
+  test('compiled CSS has actual selectors from contract', () => {
+    const compiledPath = path.join(__dirname, '..', 'runtime', 'dream-skin-compiled.css');
+    if (!fs.existsSync(compiledPath)) {
+      const { execSync } = require('child_process');
+      execSync('node tools/sync-runtime-assets.mjs', { cwd: path.join(__dirname, '..'), encoding: 'utf8' });
+    }
+    const css = fs.readFileSync(compiledPath, 'utf8');
+    assert(css.includes("aside, nav, [class*='sidebar']"), 'Contains left-panel selector');
+    assert(css.includes('[role="main"]') || css.includes('[class*="content"]'), 'Contains shell-main selector');
+  });
+}
+
+// ── Image Analysis Tests ──────────────────────────────────────────────────
+
+function testImageAnalysis() {
+  console.log('\n🖼️ Image Analysis');
+
+  // We can't load the full renderer-inject.js in Node (uses window/Image),
+  // but we can test the analysis logic directly
+  test('hslToRgb conversion is correct', () => {
+    // Test the algorithm used in renderer-inject.js
+    function hslToRgb(h, s, l) {
+      s /= 100; l /= 100;
+      const a = s * Math.min(l, 1 - l);
+      const f = n => {
+        const k = (n + h / 30) % 12;
+        return l - a * Math.max(Math.min(k - 3, 9 - k, 1), -1);
+      };
+      return [Math.round(f(0) * 255), Math.round(f(8) * 255), Math.round(f(4) * 255)];
+    }
+
+    // Red: h=0, s=100, l=50
+    const red = hslToRgb(0, 100, 50);
+    assert(Math.abs(red[0] - 255) < 2, `Red R: ${red[0]}`);
+    assert(Math.abs(red[1] - 0) < 2, `Red G: ${red[1]}`);
+    assert(Math.abs(red[2] - 0) < 2, `Red B: ${red[2]}`);
+
+    // Blue: h=240, s=100, l=50
+    const blue = hslToRgb(240, 100, 50);
+    assert(Math.abs(blue[0] - 0) < 2, `Blue R: ${blue[0]}`);
+    assert(Math.abs(blue[1] - 0) < 2, `Blue G: ${blue[1]}`);
+    assert(Math.abs(blue[2] - 255) < 2, `Blue B: ${blue[2]}`);
+
+    // Green: h=120, s=100, l=50
+    const green = hslToRgb(120, 100, 50);
+    assert(Math.abs(green[0] - 0) < 2, `Green R: ${green[0]}`);
+    assert(Math.abs(green[1] - 255) < 2, `Green G: ${green[1]}`);
+    assert(Math.abs(green[2] - 0) < 2, `Green B: ${green[2]}`);
+  });
+
+  test('hue binning logic works', () => {
+    const HUE_BINS = 24;
+    // H=0 → bin 0
+    assert.strictEqual(Math.round(0 / (360 / HUE_BINS)) % HUE_BINS, 0);
+    // H=180 → bin 12
+    assert.strictEqual(Math.round(180 / (360 / HUE_BINS)) % HUE_BINS, 12);
+    // H=360 → bin 0 (wraps)
+    assert.strictEqual(Math.round(360 / (360 / HUE_BINS)) % HUE_BINS, 0);
+  });
+
+  test('renderer-inject.js contains image analysis', () => {
+    const injectPath = path.join(__dirname, '..', 'runtime', 'renderer-inject.js');
+    const code = fs.readFileSync(injectPath, 'utf8');
+    assert(code.includes('analyzeImage'), 'Has analyzeImage function');
+    assert(code.includes('HUE_BINS'), 'Has hue binning constant');
+    assert(code.includes('hslToRgb'), 'Has color conversion');
+    assert(code.includes('dominantHue'), 'Analyzes dominant hue');
+    assert(code.includes('brightness'), 'Analyzes brightness');
+    assert(code.includes('focusX'), 'Analyzes focus point');
+    assert(code.includes('accentRgb'), 'Generates accent color');
+  });
+
+  test('renderer-inject.js contains adaptive palette', () => {
+    const injectPath = path.join(__dirname, '..', 'runtime', 'renderer-inject.js');
+    const code = fs.readFileSync(injectPath, 'utf8');
+    assert(code.includes('--ds-accent-rgb'), 'Sets accent-rgb');
+    assert(code.includes('accentHex'), 'Generates accent hex');
+  });
+}
+
+// ── Light Theme Tests ─────────────────────────────────────────────────────
+
+function testLightTheme() {
+  console.log('\n☀️ Light Theme');
+
+  test('dream-skin.css has light theme section', () => {
+    const cssPath = path.join(__dirname, '..', 'runtime', 'dream-skin.css');
+    const css = fs.readFileSync(cssPath, 'utf8');
+    assert(css.includes('data-dream-shell="light"'), 'Has light shell selector');
+    assert(css.includes('color-scheme: light'), 'Sets light color-scheme');
+  });
+
+  test('light theme overrides sufficient variables', () => {
+    const cssPath = path.join(__dirname, '..', 'runtime', 'dream-skin.css');
+    const css = fs.readFileSync(cssPath, 'utf8');
+    // Extract the light section
+    const lightMatch = css.match(/html\[data-dream-skin="active"\]\[data-dream-shell="light"\]\s*\{([^}]+)\}/s);
+    assert(lightMatch, 'Found light theme block');
+    const lightVars = (lightMatch[1].match(/--ds-[a-z-]+/g) || []);
+    assert(lightVars.length >= 15, `Light theme overrides ${lightVars.length} variables (need >= 15)`);
+  });
+
+  test('renderer-inject.js detects shell type', () => {
+    const injectPath = path.join(__dirname, '..', 'runtime', 'renderer-inject.js');
+    const code = fs.readFileSync(injectPath, 'utf8');
+    assert(code.includes('detectShell'), 'Has shell detection function');
+    assert(code.includes('electron-light') || code.includes('electron-dark'), 'Checks electron class');
+    assert(code.includes('data-dream-shell'), 'Sets shell attribute');
+  });
+
+  test('light theme uses lighter backgrounds and darker text', () => {
+    const cssPath = path.join(__dirname, '..', 'runtime', 'dream-skin.css');
+    const css = fs.readFileSync(cssPath, 'utf8');
+    const lightMatch = css.match(/html\[data-dream-skin="active"\]\[data-dream-shell="light"\]\s*\{([^}]+)\}/s);
+    assert(lightMatch, 'Found light theme block');
+    const content = lightMatch[1];
+    // Light theme should have lighter bg values (high numbers)
+    assert(content.includes('#f') || content.includes('rgb(24'), 'Has light background');
+    // Light theme should have darker text values (low numbers)
+    assert(content.includes('#22') || content.includes('rgb(3'), 'Has dark text');
+  });
+}
+
+// ── Three-Layer Background Tests ──────────────────────────────────────────
+
+function testThreeLayerBackground() {
+  console.log('\n🏔️ Three-Layer Background System');
+
+  test('CSS has task-fade, task-shade, and dream-skin-art layers', () => {
+    const cssPath = path.join(__dirname, '..', 'runtime', 'dream-skin.css');
+    const css = fs.readFileSync(cssPath, 'utf8');
+    assert(css.includes('--ds-task-fade'), 'Has task-fade variable');
+    assert(css.includes('--ds-task-shade'), 'Has task-shade variable');
+    assert(css.includes('--dream-skin-art'), 'Has art background variable');
+  });
+
+  test('CSS uses all three layers in background-image', () => {
+    const cssPath = path.join(__dirname, '..', 'runtime', 'dream-skin.css');
+    const css = fs.readFileSync(cssPath, 'utf8');
+    // The ::before pseudo-element should stack all three
+    assert(css.includes('var(--ds-task-fade)'), 'Uses task-fade in stack');
+    assert(css.includes('var(--ds-task-shade)'), 'Uses task-shade in stack');
+    assert(css.includes('var(--dream-skin-art)'), 'Uses art image in stack');
+  });
+
+  test('CSS has task-mode selectors (ambient, banner, off)', () => {
+    const cssPath = path.join(__dirname, '..', 'runtime', 'dream-skin.css');
+    const css = fs.readFileSync(cssPath, 'utf8');
+    assert(css.includes('data-dream-task-mode="ambient"'), 'Has ambient mode');
+    assert(css.includes('data-dream-task-mode="banner"'), 'Has banner mode');
+    assert(css.includes('data-dream-task-mode="off"'), 'Has off mode');
+  });
+
+  test('banner mode has constrained height', () => {
+    const cssPath = path.join(__dirname, '..', 'runtime', 'dream-skin.css');
+    const css = fs.readFileSync(cssPath, 'utf8');
+    const bannerMatch = css.match(/banner[^}]*clamp\([^)]+\)/s);
+    assert(bannerMatch, 'Banner mode has clamp height');
+  });
+
+  test('renderer-inject.js sets task-mode data attributes', () => {
+    const injectPath = path.join(__dirname, '..', 'runtime', 'renderer-inject.js');
+    const code = fs.readFileSync(injectPath, 'utf8');
+    assert(code.includes('data-dream-task-mode'), 'Sets task-mode attribute');
+    assert(code.includes('taskMode'), 'Reads taskMode from meta');
+  });
 }
 
 // ── Run All Tests ───────────────────────────────────────────────────────────
@@ -251,6 +484,10 @@ async function run() {
   await testProcessManager();
   testCSSFiles();
   await testCDPInjector();
+  testSelectorCompilation();
+  testImageAnalysis();
+  testLightTheme();
+  testThreeLayerBackground();
 
   console.log('\n' + '='.repeat(50));
   console.log(`Results: ${passed} passed, ${failed} failed`);

@@ -1,0 +1,37 @@
+{
+  "schema": "claude-dream-skin-selectors/1",
+  "description": "Claude Desktop DOM selector contract. Selectors target known CSS class patterns and semantic elements since app.asar is bundled. Updated as we discover actual class names via cdp-inspect.",
+  "selectors": [
+    { "key": "shell-main", "selector": "main, [role='main'], [class*='content']", "tier": "L1", "scope": "all", "required": true, "notes": "Main content area" },
+    { "key": "left-panel", "selector": "aside, nav, [class*='sidebar'], [class*='Sidebar'], [class*='nav-'], [class*='Navigation']", "tier": "L1", "scope": "all", "required": true, "notes": "Left sidebar / navigation panel" },
+    { "key": "header-tint", "selector": "header, [class*='header'], [class*='Header'], [class*='top-bar'], [class*='TopBar']", "tier": "L1", "scope": "all", "required": false, "notes": "Top header bar" },
+    { "key": "composer-chrome", "selector": "[contenteditable='true'], [role='textbox'], [class*='composer'], [class*='Composer'], [class*='input'], textarea", "tier": "L2", "scope": "home+thread", "required": false, "notes": "Text input area" },
+    { "key": "home-route", "selector": "[class*='home'], [class*='Home'], [class*='welcome'], [class*='Welcome']", "tier": "L1", "scope": "home", "required": false, "notes": "Home/welcome screen" },
+    { "key": "home-suggestions", "selector": "[class*='suggestion'], [class*='Suggestion'], [class*='starter'], [class*='Starter']", "tier": "L2", "scope": "home", "required": false, "notes": "Suggestion cards on home screen" },
+    { "key": "markdown", "selector": "[class*='markdown'], [class*='Markdown'], .markdown-body, [class*='prose'], [class*='content'] [class*='text'], article", "tier": "L2", "scope": "thread", "required": false, "notes": "Message content area" },
+    { "key": "message", "selector": "[class*='message'], [class*='Message'], [class*='chat-message'], [class*='ChatMessage']", "tier": "L1", "scope": "thread", "required": false, "notes": "Individual chat messages" },
+    { "key": "code-block", "selector": "pre, code, [class*='code'], [class*='Code'], pre[class*='language-']", "tier": "L2", "scope": "thread", "required": false, "notes": "Code blocks and inline code" },
+    { "key": "overlay-menu", "selector": "[role='menu']", "tier": "L2", "scope": "overlay", "required": false, "notes": "Context menus" },
+    { "key": "overlay-dialog", "selector": "[role='dialog']", "tier": "L2", "scope": "overlay", "required": false, "notes": "Modal dialogs" },
+    { "key": "send-button", "selector": "[class*='send'], [class*='Submit'], [class*='submit'], button[type='submit']", "tier": "L2", "scope": "home+thread", "required": false, "notes": "Send/submit button" }
+  ],
+  "themeVariables": [
+    "--ds-bg", "--ds-panel", "--ds-panel-2", "--ds-surface",
+    "--ds-text", "--ds-muted", "--ds-line",
+    "--ds-bg-rgb", "--ds-panel-rgb", "--ds-panel-2-rgb", "--ds-surface-rgb",
+    "--ds-text-rgb", "--ds-muted-rgb", "--ds-line-rgb",
+    "--ds-accent-rgb", "--ds-accent-alt-rgb",
+    "--ds-secondary-rgb", "--ds-highlight-rgb",
+    "--ds-accent", "--ds-accent-soft", "--ds-secondary", "--ds-highlight",
+    "--ds-on-accent",
+    "--ds-radius", "--ds-radius-lg",
+    "--ds-font-family", "--ds-font-mono", "--ds-line-height",
+    "--dream-skin-name", "--dream-skin-tagline",
+    "--dream-art-focus-x", "--dream-art-focus-y", "--dream-art-position",
+    "--dream-skin-focus-x", "--dream-skin-focus-y", "--dream-skin-art-position",
+    "--dream-skin-art", "--ds-task-mode", "--ds-safe-side",
+    "--ds-hero-scrim", "--ds-task-shade", "--ds-task-fade",
+    "--ds-immersive-edge", "--ds-immersive-mid", "--ds-immersive-far",
+    "--ds-immersive-sidebar", "--ds-immersive-chrome", "--ds-immersive-composer"
+  ]
+}

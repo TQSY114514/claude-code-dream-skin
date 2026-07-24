@@ -1,5 +1,7 @@
 const CDP = require('chrome-remote-interface');
 const http = require('http');
+const fs = require('fs');
+const path = require('path');
 
 /**
  * CDP-based CSS injector for Electron apps.
@@ -13,8 +15,9 @@ class CDPInjector {
   constructor(port) {
     this.port = port;
     this.client = null;
-    this.attachedSessions = new Map();   // targetId -> { session, pageClient, styleSheetId }
+    this.attachedSessions = new Map();
     this.themeCSS = '';
+    this.themeMeta = null;
     this.reconnectAttempts = 0;
     this.maxReconnectAttempts = 10;
     this.reconnectTimer = null;
@@ -23,6 +26,17 @@ class CDPInjector {
     this._targetCreatedHandler = null;
     this._frameNavigatedHandler = null;
     this._disconnected = false;
+    this._injectorCode = this._loadInjectorScript();
+  }
+
+  _loadInjectorScript() {
+    const injectorPath = path.join(__dirname, '..', '..', '..', 'runtime', 'renderer-inject.js');
+    try {
+      return fs.readFileSync(injectorPath, 'utf-8');
+    } catch (e) {
+      console.warn('[CDPInjector] renderer-inject.js not found, selector compilation disabled');
+      return '(() => { console.warn("[DreamSkin] renderer-inject.js not available"); })()';
+    }
   }
 
   async connect() {
@@ -128,6 +142,33 @@ class CDPInjector {
         returnByValue: true,
       });
 
+      // Inject the renderer engine (selector resolution, image analysis, theme application)
+      if (this._injectorCode) {
+        try {
+          await pageClient.Runtime.evaluate({
+            expression: this._injectorCode,
+            returnByValue: true,
+          });
+        } catch (e) {
+          console.warn(`[CDPInjector] JS injection warning for ${targetId.substring(0, 8)}: ${e.message}`);
+        }
+      }
+
+      // Inject theme meta to the renderer engine
+      if (this.themeMeta && this._injectorCode) {
+        try {
+          await pageClient.Runtime.evaluate({
+            expression: `(() => {
+              const meta = ${JSON.stringify(this.themeMeta)};
+              window.__dreamSkinThemeMeta__ = meta;
+            })()`,
+            returnByValue: true,
+          });
+        } catch (e) {
+          console.warn(`[CDPInjector] Meta injection warning: ${e.message}`);
+        }
+      }
+
       this.attachedSessions.set(targetId, {
         sessionId,
         pageClient,
@@ -171,8 +212,9 @@ class CDPInjector {
     }
   }
 
-  async setTheme(css) {
+  async setTheme(css, themeMeta) {
     this.themeCSS = css;
+    this.themeMeta = themeMeta || null;
     if (this._disconnected) return;
 
     // Remove all existing injections, then re-apply

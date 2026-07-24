@@ -104,10 +104,17 @@ class SkinManager {
       this.injector = new CDPInjector(port);
       await this.injector.connect();
 
-      // Get active theme and inject
+      // Get active theme and inject with full metadata
       const theme = this.themeEngine.getActiveTheme();
       const fullCSS = this.themeEngine.getInjectionCSS(theme.css, theme.backgroundBase64);
-      await this.injector.setTheme(fullCSS);
+      const themeMeta = {
+        name: theme.name,
+        displayName: theme.displayName,
+        tagline: theme.tagline || '',
+        backgroundBase64: theme.backgroundBase64 || null,
+        taskMode: theme.taskMode || 'immersive',
+      };
+      await this.injector.setTheme(fullCSS, themeMeta);
 
       this.injectionStatus = { connected: true, injecting: false, error: null };
       this.sendToWindow('injection-status', this.injectionStatus);
@@ -253,7 +260,14 @@ class SkinManager {
     if (this.injector && this.injectionStatus.connected) {
       const theme = this.themeEngine.getActiveTheme();
       const fullCSS = this.themeEngine.getInjectionCSS(theme.css, theme.backgroundBase64);
-      await this.injector.setTheme(fullCSS);
+      const themeMeta = {
+        name: theme.name,
+        displayName: theme.displayName,
+        tagline: theme.tagline || '',
+        backgroundBase64: theme.backgroundBase64 || null,
+        taskMode: theme.taskMode || 'immersive',
+      };
+      await this.injector.setTheme(fullCSS, themeMeta);
     }
 
     this.updateTrayMenu();

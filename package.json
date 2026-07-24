@@ -26,11 +26,12 @@
     "dev": "electron . --inspect=5858",
     "test": "node test/runner.js",
     "build-icon": "node tools/generate-icon.mjs",
-    "build": "electron-builder",
-    "build:win": "electron-builder --win nsis",
+    "build:assets": "node tools/sync-runtime-assets.mjs",
+    "build": "npm run build:assets && electron-builder",
+    "build:win": "npm run build:assets && electron-builder --win nsis",
     "lint": "eslint src/",
     "pack": "electron-builder --dir",
-    "dist": "npm run lint && npm run build"
+    "dist": "npm run lint && npm run build:assets && npm run build"
   },
   "engines": {
     "node": ">=18.0.0"
@@ -59,6 +60,7 @@
       "src/**/*",
       "themes/**/*",
       "tools/**/*",
+      "runtime/**/*",
       "test/**/*",
       "assets/**/*",
       "node_modules/**/*"
