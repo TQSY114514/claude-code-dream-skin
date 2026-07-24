@@ -5,8 +5,7 @@
  * and IPC communication with the main process.
  */
 
-// const { ipcRenderer } = require('electron'); // removed: use window.cds (contextBridge)
-const cds = window.cds;
+var cds = window.cds; // contextBridge already exposed it; var allows safe access
 
 // ── Error handling ──────────────────────────────────────────────────────────
 window.addEventListener('error', (e) => {
