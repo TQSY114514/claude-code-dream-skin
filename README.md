@@ -13,14 +13,6 @@
   一张图，一种心情 · 写代码，也要有氛围感
 </p>
 
-## 预览
-
-### Gothic Neon / 默认主题
-
-<p align="center">
-  <img src="docs/images/presets/gothic-neon-preview.jpg" alt="Gothic Neon" width="900">
-</p>
-
 ## 它做什么
 
 - **CDP 外部注入**：通过 Chrome DevTools Protocol 向 Claude Desktop 注入 CSS
@@ -55,7 +47,7 @@
   │   Dream Skin Manager  (Electron Tray App)  │
   │  ┌────────────────┐  ┌──────────────────┐  │
   │  │ Theme Engine   │  │ CDP Injector     │  │
-  │  │ - 6 预设主题   │  │ - 连接检测       │  │
+  │  │ - 14 款预设主题 │  │ - 连接检测       │  │
   │  │ - 变量系统     │  │ - CSS 注入       │  │
   │  │ - 导入/导出    │  │ - 导航监控       │  │
   │  └────────────────┘  └──────────────────┘  │
