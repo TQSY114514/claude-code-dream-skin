@@ -114,6 +114,7 @@ class SkinManager {
         tagline: theme.tagline || '',
         backgroundBase64: theme.backgroundBase64 || null,
         taskMode: theme.taskMode || 'immersive',
+        dynamic: theme.dynamic || null,
       };
 
       // Pass theme CSS (with tokens) — renderer-inject.js will compile at runtime
@@ -270,6 +271,7 @@ class SkinManager {
         tagline: theme.tagline || '',
         backgroundBase64: theme.backgroundBase64 || null,
         taskMode: theme.taskMode || 'immersive',
+        dynamic: theme.dynamic || null,
       };
       await this.injector.setTheme(fullCSS, themeMeta);
     }

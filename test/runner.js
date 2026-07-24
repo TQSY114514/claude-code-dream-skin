@@ -428,7 +428,112 @@ function testLightTheme() {
   });
 }
 
-// ── Three-Layer Background Tests ──────────────────────────────────────────
+// ── Dynamic Effects Tests ───────────────────────────────────────────────────
+
+function testDynamicEffects() {
+  console.log('\n✨ Dynamic Effects System');
+
+  test('dream-skin.css has particle animation keyframes', () => {
+    const cssPath = path.join(__dirname, '..', 'runtime', 'dream-skin.css');
+    const css = fs.readFileSync(cssPath, 'utf8');
+    assert(css.includes('@keyframes ds-float'), 'Has ds-float keyframes');
+    assert(css.includes('@keyframes ds-sparkle-blink'), 'Has ds-sparkle-blink keyframes');
+    assert(css.includes('@keyframes ds-glow-pulse'), 'Has ds-glow-pulse keyframes');
+    assert(css.includes('@keyframes ds-shimmer'), 'Has ds-shimmer keyframes');
+    assert(css.includes('@keyframes ds-drift-up'), 'Has ds-drift-up keyframes');
+    assert(css.includes('@keyframes ds-twinkle'), 'Has ds-twinkle keyframes');
+  });
+
+  test('dream-skin.css has dynamic CSS classes', () => {
+    const cssPath = path.join(__dirname, '..', 'runtime', 'dream-skin.css');
+    const css = fs.readFileSync(cssPath, 'utf8');
+    assert(css.includes('.ds-particle'), 'Has ds-particle class');
+    assert(css.includes('.ds-sparkle'), 'Has ds-sparkle class');
+    assert(css.includes('.ds-glow'), 'Has ds-glow class');
+    assert(css.includes('.ds-mouse-vignette'), 'Has ds-mouse-vignette class');
+  });
+
+  test('dream-skin.css has data-dream-dynamic selector', () => {
+    const cssPath = path.join(__dirname, '..', 'runtime', 'dream-skin.css');
+    const css = fs.readFileSync(cssPath, 'utf8');
+    assert(css.includes('data-dream-dynamic="on"'), 'Has data-dream-dynamic attribute selector');
+  });
+
+  test('dream-skin.css has particle CSS variables', () => {
+    const cssPath = path.join(__dirname, '..', 'runtime', 'dream-skin.css');
+    const css = fs.readFileSync(cssPath, 'utf8');
+    assert(css.includes('--ds-particle-count'), 'Has particle count variable');
+    assert(css.includes('--ds-particle-speed'), 'Has particle speed variable');
+    assert(css.includes('--ds-particle-duration'), 'Has particle duration variable');
+    assert(css.includes('--ds-particle-opacity'), 'Has particle opacity variable');
+  });
+
+  test('dream-skin.css has dynamic CSS variables in dark theme', () => {
+    const cssPath = path.join(__dirname, '..', 'runtime', 'dream-skin.css');
+    const css = fs.readFileSync(cssPath, 'utf8');
+    const rootMatch = css.match(/:root\[data-dream-skin="active"\]\s*\{([^}]+)\}/s);
+    assert(rootMatch, 'Found root block');
+    assert(rootMatch[1].includes('--ds-dynamic-enabled'), 'Has dynamic-enabled variable');
+  });
+
+  test('dream-skin.css has scan line effect for dynamic mode', () => {
+    const cssPath = path.join(__dirname, '..', 'runtime', 'dream-skin.css');
+    const css = fs.readFileSync(cssPath, 'utf8');
+    assert(css.includes('repeating-linear-gradient'), 'Has scan line gradient');
+  });
+
+  test('dream-skin.css has tagline styling', () => {
+    const cssPath = path.join(__dirname, '..', 'runtime', 'dream-skin.css');
+    const css = fs.readFileSync(cssPath, 'utf8');
+    assert(css.includes('.ds-tagline'), 'Has ds-tagline class');
+  });
+
+  test('renderer-inject.js has dynamic effects engine', () => {
+    const injectPath = path.join(__dirname, '..', 'runtime', 'renderer-inject.js');
+    const code = fs.readFileSync(injectPath, 'utf8');
+    assert(code.includes('createParticle'), 'Has createParticle function');
+    assert(code.includes('createGlowBlob'), 'Has createGlowBlob function');
+    assert(code.includes('createSparkle'), 'Has createSparkle function');
+    assert(code.includes('initDynamicEffects'), 'Has initDynamicEffects function');
+    assert(code.includes('clearDynamicEffects'), 'Has clearDynamicEffects function');
+  });
+
+  test('renderer-inject.js has mouse parallax for dynamic effects', () => {
+    const injectPath = path.join(__dirname, '..', 'runtime', 'renderer-inject.js');
+    const code = fs.readFileSync(injectPath, 'utf8');
+    assert(code.includes('mousemove'), 'Listens for mousemove events');
+    assert(code.includes('ds-mouse-x'), 'Sets mouse X position');
+    assert(code.includes('ds-mouse-y'), 'Sets mouse Y position');
+    assert(code.includes('ds-mouse-vignette'), 'Has vignette element for mouse tracking');
+  });
+
+  test('renderer-inject.js has click sparkle effects', () => {
+    const injectPath = path.join(__dirname, '..', 'runtime', 'renderer-inject.js');
+    const code = fs.readFileSync(injectPath, 'utf8');
+    assert(code.includes('addEventListener') && code.includes("'click'"), 'Listens for click events');
+    assert(code.includes('ds-sparkle'), 'Creates sparkle elements on click');
+  });
+
+  test('themes with dynamic config have correct structure', () => {
+    const themesDir = path.join(__dirname, '..', 'themes');
+    for (const name of fs.readdirSync(themesDir)) {
+      const themePath = path.join(themesDir, name);
+      if (!fs.statSync(themePath).isDirectory()) continue;
+      const metaPath = path.join(themePath, 'theme.json');
+      if (!fs.existsSync(metaPath)) continue;
+      const meta = JSON.parse(fs.readFileSync(metaPath, 'utf8'));
+      if (meta.dynamic) {
+        assert(typeof meta.dynamic.particleCount === 'number', `${name}: particleCount is number`);
+        assert(typeof meta.dynamic.glowCount === 'number', `${name}: glowCount is number`);
+        assert(typeof meta.dynamic.speed === 'number', `${name}: speed is number`);
+        assert(typeof meta.dynamic.sparkleOnClick === 'boolean', `${name}: sparkleOnClick is boolean`);
+        assert(typeof meta.dynamic.parallax === 'boolean', `${name}: parallax is boolean`);
+        assert(meta.dynamic.particleCount > 0, `${name}: particleCount > 0`);
+        assert(meta.dynamic.particleCount <= 100, `${name}: particleCount <= 100`);
+      }
+    }
+  });
+}
 
 function testThreeLayerBackground() {
   console.log('\n🏔️ Three-Layer Background System');
@@ -487,6 +592,7 @@ async function run() {
   testImageAnalysis();
   testLightTheme();
   testThreeLayerBackground();
+  testDynamicEffects();
 
   console.log('\n' + '='.repeat(50));
   console.log(`Results: ${passed} passed, ${failed} failed`);

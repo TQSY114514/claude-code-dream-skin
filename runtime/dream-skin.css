@@ -44,6 +44,13 @@
   --ds-task-immersive-edge: rgb(var(--ds-bg-rgb) / .82);
   --ds-task-immersive-mid: rgb(var(--ds-bg-rgb) / .74);
   --ds-task-immersive-far: rgb(var(--ds-bg-rgb) / .60);
+  /* Dynamic effects */
+  --ds-particle-count: 40;
+  --ds-particle-speed: 1;
+  --ds-particle-duration: 8s;
+  --ds-particle-opacity: 0.55;
+  --ds-glow-duration: 12s;
+  --ds-dynamic-enabled: 0;
 }
 
 html[data-dream-skin="active"][data-dream-shell="light"] {
@@ -79,6 +86,13 @@ html[data-dream-skin="active"][data-dream-shell="light"] {
   --ds-task-immersive-edge: rgb(var(--ds-panel-rgb) / .86);
   --ds-task-immersive-mid: rgb(var(--ds-panel-rgb) / .78);
   --ds-task-immersive-far: rgb(var(--ds-panel-rgb) / .66);
+  /* Dynamic effects */
+  --ds-particle-count: 40;
+  --ds-particle-speed: 1;
+  --ds-particle-duration: 8s;
+  --ds-particle-opacity: 0.55;
+  --ds-glow-duration: 12s;
+  --ds-dynamic-enabled: 0;
 }
 
 html[data-dream-skin="active"] body {
@@ -531,9 +545,184 @@ html[data-dream-skin="active"] [class*="Tab"][aria-selected="true"] {
   border-bottom-color: var(--ds-accent) !important;
 }
 
+/* ── Dynamic Effects System ──
+   Controlled by data-dream-dynamic="on" attribute (set by renderer-inject.js).
+   Particle count and speed are controlled by --ds-particle-count and --ds-particle-speed.
+*/
+
+/* Particle container */
+html[data-dream-skin="active"][data-dream-dynamic="on"] __DREAM_SELECTOR_SHELL_MAIN__ {
+  overflow: hidden !important;
+}
+
+/* Individual particle */
+.ds-particle {
+  position: absolute;
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 2;
+  opacity: 0;
+  animation: ds-float var(--ds-particle-duration, 8s) var(--ds-particle-delay, 0s) infinite ease-in-out;
+}
+
+@keyframes ds-float {
+  0% { transform: translateY(0) translateX(0) scale(0.4); opacity: 0; }
+  8% { opacity: var(--ds-particle-opacity, 0.55); }
+  25% { transform: translateY(calc(-1 * var(--ds-particle-drift-y, 22px))) translateX(var(--ds-particle-drift-x, 8px)) scale(1); opacity: var(--ds-particle-opacity, 0.55); }
+  50% { opacity: calc(var(--ds-particle-opacity, 0.55) * 1.4); }
+  75% { transform: translateY(calc(-2 * var(--ds-particle-drift-y, 22px))) translateX(calc(-1 * var(--ds-particle-drift-x, 8px))) scale(0.7); opacity: calc(var(--ds-particle-opacity, 0.55) * 0.7); }
+  100% { transform: translateY(-110vh) translateX(calc(var(--ds-particle-drift-x, 8px) * 2.5)) scale(0.15); opacity: 0; }
+}
+
+/* Sparkle effect */
+.ds-sparkle {
+  position: absolute;
+  pointer-events: none;
+  z-index: 3;
+  width: 3px; height: 3px;
+  border-radius: 50%;
+  background: white;
+  box-shadow: 0 0 4px 1px rgba(255, 255, 255, 0.6), 0 0 8px 2px rgba(255, 255, 255, 0.15);
+  animation: ds-sparkle-blink 0.4s ease-out forwards;
+}
+
+@keyframes ds-sparkle-blink {
+  0% { transform: scale(0); opacity: 1; }
+  50% { transform: scale(1.8); opacity: 0.9; }
+  100% { transform: scale(0.1); opacity: 0; }
+}
+
+/* Ambient glow blobs */
+.ds-glow {
+  position: absolute;
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 1;
+  filter: blur(60px);
+  opacity: 0;
+  animation: ds-glow-pulse var(--ds-glow-duration, 12s) infinite ease-in-out;
+}
+
+@keyframes ds-glow-pulse {
+  0%, 100% { opacity: 0; transform: scale(0.6); }
+  25% { opacity: 0.12; }
+  50% { opacity: 0.20; transform: scale(1.15); }
+  75% { opacity: 0.08; }
+}
+
+/* Background art parallax container */
+html[data-dream-skin="active"][data-dream-dynamic="on"]
+  __DREAM_SELECTOR_SHELL_MAIN__:not(:has(__DREAM_SELECTOR_HOME_ROUTE__))::before {
+  transition: background-position 0.15s ease-out, transform 0.3s ease-out;
+}
+
+/* Ambient scan line (very subtle) */
+html[data-dream-skin="active"][data-dream-dynamic="on"]
+  __DREAM_SELECTOR_SHELL_MAIN__:not(:has(__DREAM_SELECTOR_HOME_ROUTE__))::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgb(var(--ds-bg-rgb) / .012) 2px,
+    rgb(var(--ds-bg-rgb) / .012) 4px
+  );
+  opacity: 0.4;
+}
+
+/* ── Theme tagline overlay ── */
+.ds-tagline {
+  display: block;
+  position: absolute;
+  bottom: 16px; right: 22px;
+  z-index: 5;
+  font-size: 12px;
+  font-weight: 500;
+  color: rgb(var(--ds-text-rgb) / .55);
+  letter-spacing: 0.4px;
+  text-shadow: 0 1px 4px rgb(var(--ds-bg-rgb) / .8);
+  font-style: italic;
+  pointer-events: none;
+}
+.ds-mouse-vignette {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+  opacity: 0.35;
+  background: radial-gradient(
+    ellipse 280px 280px at var(--ds-mouse-x, 50%) var(--ds-mouse-y, 50%),
+    rgb(var(--ds-accent-rgb) / .08) 0%,
+    transparent 70%
+  );
+  transition: background 0.2s ease-out;
+}
+
+/* Shimmer on home hero card */
+html[data-dream-skin="active"][data-dream-dynamic="on"]
+  __DREAM_SELECTOR_HOME_ROUTE__ > div:first-child > div:first-child > div:first-child::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  border-radius: 21px;
+  pointer-events: none;
+  background: linear-gradient(
+    105deg,
+    transparent 40%,
+    rgb(var(--ds-text-rgb) / .04) 45%,
+    rgb(var(--ds-text-rgb) / .06) 50%,
+    rgb(var(--ds-text-rgb) / .04) 55%,
+    transparent 60%
+  );
+  background-size: 200% 100%;
+  animation: ds-shimmer 6s ease-in-out infinite;
+}
+
+@keyframes ds-shimmer {
+  0%, 100% { background-position: 200% 0; }
+  50% { background-position: -200% 0; }
+}
+
 /* ── Animations ── */
 @keyframes ds-spin { to { transform: rotate(360deg); } }
 @keyframes ds-pulse {
   0%, 100% { opacity: 1; }
   50% { opacity: .5; }
+}
+@keyframes ds-breathe {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.015); }
+}
+@keyframes ds-glow-rotate {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+@keyframes ds-drift-up {
+  from { transform: translateY(0) translateX(0); opacity: 0; }
+  10% { opacity: 0.6; }
+  90% { opacity: 0.6; }
+  to { transform: translateY(-100vh) translateX(20px); opacity: 0; }
+}
+@keyframes ds-twinkle {
+  0%, 100% { opacity: 0; transform: scale(0.5); }
+  50% { opacity: 0.9; transform: scale(1.2); }
+}
+@keyframes ds-ambient-rotate {
+  from { transform: rotate(0deg) scale(1); }
+  33% { transform: rotate(120deg) scale(1.1); }
+  66% { transform: rotate(240deg) scale(0.9); }
+  to { transform: rotate(360deg) scale(1); }
+}
+@keyframes ds-border-glow {
+  0%, 100% { border-color: rgb(var(--ds-accent-rgb) / .15); }
+  50% { border-color: rgb(var(--ds-accent-rgb) / .45); }
+}
+@keyframes ds-text-shimmer {
+  0% { background-position: -200% center; }
+  100% { background-position: 200% center; }
 }

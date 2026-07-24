@@ -10,5 +10,12 @@
     "surface": "#111827",
     "text": "#e0f0ff",
     "muted": "#5a7a9a"
+  },
+  "dynamic": {
+    "particleCount": 45,
+    "glowCount": 5,
+    "speed": 0.9,
+    "sparkleOnClick": true,
+    "parallax": true
   }
 }

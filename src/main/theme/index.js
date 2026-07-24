@@ -143,7 +143,7 @@ class ThemeEngine {
       }
     }
 
-    return { name, meta, css, backgroundBase64 };
+    return { name, meta, css, backgroundBase64, dynamic: meta.dynamic || null };
   }
 
   getActiveTheme() {
@@ -163,7 +163,17 @@ class ThemeEngine {
       }
     }
 
-    return { name: this.activeThemeName, css, backgroundBase64 };
+    // Load dynamic config from active theme.json
+    let dynamic = null;
+    const metaPath = path.join(ACTIVE_DIR, 'theme.json');
+    if (fs.existsSync(metaPath)) {
+      try {
+        const meta = JSON.parse(fs.readFileSync(metaPath, 'utf8'));
+        dynamic = meta.dynamic || null;
+      } catch (_) {}
+    }
+
+    return { name: this.activeThemeName, css, backgroundBase64, dynamic };
   }
 
   activateTheme(name) {

@@ -181,8 +181,18 @@
       html.setAttribute('data-dream-task-mode', meta.taskMode || 'immersive');
       html.setAttribute('data-dream-art-task-mode', meta.taskMode || 'immersive');
       html.setAttribute('data-dream-art', `url(${bgData})`);
-      html.setAttribute('data-dream-skin-name', meta.name || 'Dream Skin');
-      html.setAttribute('data-dream-skin-tagline', meta.tagline || '');
+
+      // Tagline element in home hero
+      if (meta.tagline) {
+        let tagEl = document.querySelector('.ds-tagline');
+        if (!tagEl) {
+          tagEl = document.createElement('span');
+          tagEl.className = 'ds-tagline';
+          const heroCard = document.querySelector(SELECTORS.homeRoute + ' > div:first-child > div:first-child > div:first-child');
+          if (heroCard) heroCard.appendChild(tagEl);
+        }
+        tagEl.textContent = meta.tagline;
+      }
 
       // Adaptive accent palette
       const accent = analysis.accentRgb;
@@ -210,6 +220,9 @@
         }
       }
     }
+
+    // Dynamic effects
+    initDynamicEffects(meta.dynamic);
   }
 
   function removeTheme() {
@@ -223,13 +236,174 @@
     html.removeAttribute('data-dream-art-position');
     html.removeAttribute('data-dream-task-mode');
     html.removeAttribute('data-dream-art-task-mode');
-    html.removeAttribute('data-dream-skin-name');
-    html.removeAttribute('data-dream-skin-tagline');
     html.removeAttribute('data-dream-no-has');
+    html.removeAttribute('data-dream-dynamic');
+    const tagEl = document.querySelector('.ds-tagline');
+    if (tagEl) tagEl.remove();
     try { sessionStorage.removeItem('__dreamSkin_bg'); } catch (_) {}
+    clearDynamicEffects();
   }
 
-  // ── Shell change watcher ──────────────────────────────────────────────────
+  // ── Dynamic effects engine ────────────────────────────────────────────────
+  let dynamicCleanup = null;
+  let mouseTracker = null;
+  let sparkleTimer = null;
+  let glowElements = [];
+
+  function createParticle(shellMain) {
+    const particle = document.createElement('div');
+    particle.className = 'ds-particle';
+    const size = 2 + Math.random() * 5;
+    const isAccent = Math.random() < 0.3;
+    const root = document.documentElement;
+    const accentRgb = getComputedStyle(root).getPropertyValue('--ds-accent-rgb').trim() || '130 152 163';
+    const textRgb = getComputedStyle(root).getPropertyValue('--ds-text-rgb').trim() || '237 240 241';
+
+    particle.style.width = size + 'px';
+    particle.style.height = size + 'px';
+    particle.style.left = Math.random() * 100 + '%';
+    particle.style.top = '100%';
+    particle.style.setProperty('--ds-particle-duration', (6 + Math.random() * 10) + 's');
+    particle.style.setProperty('--ds-particle-delay', (Math.random() * 8) + 's');
+    particle.style.setProperty('--ds-particle-opacity', (0.15 + Math.random() * 0.5).toFixed(2));
+    particle.style.setProperty('--ds-particle-drift-x', ((-15 + Math.random() * 30)) + 'px');
+    particle.style.setProperty('--ds-particle-drift-y', (10 + Math.random() * 40) + 'px');
+    particle.style.background = isAccent
+      ? `rgb(${accentRgb} / 0.7)`
+      : `rgb(${textRgb} / 0.45)`;
+    particle.style.boxShadow = isAccent
+      ? `0 0 ${size * 2}px rgb(${accentRgb} / 0.25)`
+      : `0 0 ${size}px rgb(${textRgb} / 0.12)`;
+
+    shellMain.appendChild(particle);
+
+    // Remove after animation
+    const duration = parseFloat(particle.style.getPropertyValue('--ds-particle-duration'));
+    const delay = parseFloat(particle.style.getPropertyValue('--ds-particle-delay'));
+    setTimeout(() => {
+      if (particle.parentNode) particle.parentNode.removeChild(particle);
+    }, (duration + delay) * 1000 + 500);
+  }
+
+  function createGlowBlob(shellMain) {
+    const glow = document.createElement('div');
+    glow.className = 'ds-glow';
+    const size = 150 + Math.random() * 350;
+    const isAccent = Math.random() < 0.5;
+    const root = document.documentElement;
+    const accentRgb = getComputedStyle(root).getPropertyValue('--ds-accent-rgb').trim() || '130 152 163';
+    const panelRgb = getComputedStyle(root).getPropertyValue('--ds-panel-rgb').trim() || '25 28 34';
+
+    glow.style.width = size + 'px';
+    glow.style.height = size + 'px';
+    glow.style.left = Math.random() * 80 + '%';
+    glow.style.top = Math.random() * 80 + '%';
+    glow.style.setProperty('--ds-glow-duration', (8 + Math.random() * 16) + 's');
+    glow.style.animationDelay = (Math.random() * 6) + 's';
+    glow.style.background = isAccent
+      ? `radial-gradient(circle, rgb(${accentRgb} / 0.15) 0%, transparent 70%)`
+      : `radial-gradient(circle, rgb(${panelRgb} / 0.25) 0%, transparent 70%)`;
+
+    shellMain.appendChild(glow);
+    glowElements.push(glow);
+  }
+
+  function createSparkle(shellMain, x, y) {
+    const sparkle = document.createElement('div');
+    sparkle.className = 'ds-sparkle';
+    sparkle.style.left = x + 'px';
+    sparkle.style.top = y + 'px';
+    shellMain.appendChild(sparkle);
+    setTimeout(() => { if (sparkle.parentNode) sparkle.parentNode.removeChild(sparkle); }, 500);
+  }
+
+  function initDynamicEffects(meta) {
+    // Clean up previous
+    clearDynamicEffects();
+
+    if (!meta || !meta.dynamic) return;
+
+    const shellMain = document.querySelector(SELECTORS.shellMain);
+    if (!shellMain) return;
+
+    // Set attribute
+    document.documentElement.setAttribute('data-dream-dynamic', 'on');
+
+    // Create glow blobs
+    const glowCount = meta.dynamic.glowCount || 3;
+    for (let i = 0; i < glowCount; i++) {
+      createGlowBlob(shellMain);
+    }
+
+    // Create mouse vignette
+    const vignette = document.createElement('div');
+    vignette.className = 'ds-mouse-vignette';
+    shellMain.appendChild(vignette);
+    glowElements.push(vignette);
+
+    // Mouse tracker for parallax + vignette
+    let mouseTimeout;
+    shellMain.addEventListener('mousemove', (e) => {
+      clearTimeout(mouseTimeout);
+      const rect = shellMain.getBoundingClientRect();
+      const x = ((e.clientX - rect.left) / rect.width * 100).toFixed(1);
+      const y = ((e.clientY - rect.top) / rect.height * 100).toFixed(1);
+
+      // Update vignette
+      if (vignette.parentNode) {
+        vignette.style.setProperty('--ds-mouse-x', x + '%');
+        vignette.style.setProperty('--ds-mouse-y', y + '%');
+      }
+
+      // Parallax on background art
+      const art = document.querySelector('[data-dream-art]');
+      if (art && art.offsetParent) {
+        const px = ((e.clientX - rect.left) / rect.width - 0.5) * 8;
+        const py = ((e.clientY - rect.top) / rect.height - 0.5) * 6;
+        art.style.backgroundPosition = `calc(var(--ds-art-position) + ${px}px) calc(var(--ds-art-position) + ${py}px)`;
+      }
+    });
+
+    // Sparkle on click
+    shellMain.addEventListener('click', (e) => {
+      for (let i = 0; i < 6; i++) {
+        setTimeout(() => {
+          createSparkle(shellMain,
+            e.clientX - shellMain.getBoundingClientRect().left + (Math.random() - 0.5) * 30,
+            e.clientY - shellMain.getBoundingClientRect().top + (Math.random() - 0.5) * 30
+          );
+        }, i * 25);
+      }
+    });
+
+    // Particle spawner
+    const particleCount = meta.dynamic.particleCount || 35;
+    const spawnInterval = setInterval(() => {
+      const particles = shellMain.querySelectorAll('.ds-particle');
+      const maxCount = Math.round(particleCount * (getComputedStyle(root).getPropertyValue('--ds-particle-speed') || '1'));
+      if (particles.length < maxCount) {
+        createParticle(shellMain);
+      }
+    }, 600);
+
+    dynamicCleanup = () => {
+      clearInterval(spawnInterval);
+      clearTimeout(mouseTimeout);
+      document.documentElement.removeAttribute('data-dream-dynamic');
+      document.documentElement.removeAttribute('data-dream-dynamic-particles');
+      glowElements.forEach(el => { if (el.parentNode) el.parentNode.removeChild(el); });
+      glowElements = [];
+      shellMain.querySelectorAll('.ds-particle, .ds-sparkle').forEach(el => el.remove());
+      if (vignette.parentNode) vignette.remove();
+    };
+  }
+
+  function clearDynamicEffects() {
+    if (dynamicCleanup) {
+      dynamicCleanup();
+      dynamicCleanup = null;
+    }
+  }
   function watchShellChange() {
     const html = document.documentElement;
     const observer = new MutationObserver(() => {
