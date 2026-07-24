@@ -1,0 +1,31 @@
+/* Arina Theme - Soft anime-inspired palette */
+:root[data-dream-skin="active"] {
+  color-scheme: dark !important;
+  --ds-bg: #1a0f1e;
+  --ds-panel: #241828;
+  --ds-panel-2: #2e2038;
+  --ds-panel-2: #2e2038;
+  --ds-green: #d4a0c0;
+  --ds-lime: #f0c0d8;
+  --ds-cyan: #c0a0d0;
+  --ds-purple: #e8a0c0;
+  --ds-text: #f0e0ee;
+  --ds-muted: #8a6a8e;
+  --ds-line: rgba(212, 160, 192, .18);
+  --ds-bg-rgb: 26 15 30;
+  --ds-panel-rgb: 36 24 40;
+  --ds-panel-2-rgb: 46 32 56;
+  --ds-text-rgb: 240 224 238;
+  --ds-muted-rgb: 138 106 142;
+  --ds-accent-rgb: 212 160 192;
+  --ds-secondary-rgb: 192 160 208;
+  --ds-highlight-rgb: 232 160 192;
+  --ds-accent: var(--ds-purple);
+  --ds-accent-soft: var(--ds-lime);
+  --ds-secondary: var(--ds-cyan);
+  --ds-highlight: var(--ds-green);
+  --ds-focus-x: 72%;
+  --ds-focus-y: 48%;
+  --dream-skin-name: "Sakura Dream";
+  --dream-skin-tagline: "Soft pink & purple anime vibes";
+}

@@ -1,0 +1,14 @@
+{
+  "name": "Dracula",
+  "displayName": "Dracula",
+  "author": "Dracula Theme",
+  "version": "1.0.0",
+  "description": "Official Dracula theme — dark purple with vibrant pink and green accents",
+  "colors": {
+    "accent": "#BD93F9",
+    "bg": "#282a36",
+    "surface": "#44475a",
+    "text": "#f8f8f2",
+    "muted": "#6272a4"
+  }
+}

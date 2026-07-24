@@ -1,0 +1,15 @@
+{
+  "name": "Midnight Glass",
+  "displayName": "Midnight Glass",
+  "author": "Claude Code Dream Skin",
+  "version": "1.0.0",
+  "description": "Deep navy with glassmorphism and cool cyan accents",
+  "colors": {
+    "accent": "#22d3ee",
+    "bg": "#0a0e17",
+    "panel": "#111827",
+    "surface": "#1e293b",
+    "text": "#e2e8f0",
+    "muted": "#64748b"
+  }
+}

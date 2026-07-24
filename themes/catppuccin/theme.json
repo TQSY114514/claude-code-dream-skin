@@ -1,0 +1,14 @@
+{
+  "name": "Catppuccin Mocha",
+  "displayName": "Catppuccin Mocha",
+  "author": "Catppuccin Org",
+  "version": "1.0.0",
+  "description": "Warm, cozy pastel theme — the beloved Catppuccin Mocha palette",
+  "colors": {
+    "accent": "#cba6f7",
+    "bg": "#1e1e2e",
+    "surface": "#313244",
+    "text": "#cdd6f4",
+    "muted": "#6c7086"
+  }
+}

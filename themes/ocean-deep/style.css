@@ -1,0 +1,180 @@
+/* ============================================================
+   Claude Code Dream Skin — Ocean Deep Theme
+   Deep ocean blues and teals with coral accents
+   ============================================================ */
+
+:root {
+  --ds-bg: #0b1622;
+  --ds-bg-rgb: 11, 22, 34;
+  --ds-panel: #0f1e30;
+  --ds-panel-rgb: 15, 30, 48;
+  --ds-surface: #152a42;
+  --ds-surface-rgb: 21, 42, 66;
+
+  --ds-text: #d4e8ff;
+  --ds-text-rgb: 212, 232, 255;
+  --ds-muted: #5a7a9a;
+  --ds-muted-rgb: 90, 122, 154;
+
+  --ds-accent: #4FC3F7;
+  --ds-accent-rgb: 79, 195, 247;
+  --ds-accent-soft: rgba(79, 195, 247, 0.12);
+
+  --ds-border: rgba(79, 195, 247, 0.08);
+  --ds-border-hover: rgba(79, 195, 247, 0.18);
+  --ds-radius: 8px;
+  --ds-radius-lg: 12px;
+  --ds-font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --ds-font-mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', 'SF Mono', monospace;
+  --ds-line-height: 1.65;
+  --ds-transition: 200ms ease;
+}
+
+.dream-skin-active {
+  scrollbar-width: thin;
+  scrollbar-color: var(--ds-muted) transparent;
+}
+.dream-skin-active ::-webkit-scrollbar { width: 6px; height: 6px; }
+.dream-skin-active ::-webkit-scrollbar-track { background: transparent; }
+.dream-skin-active ::-webkit-scrollbar-thumb { background: rgba(79, 195, 247, 0.15); border-radius: 3px; }
+.dream-skin-active ::-webkit-scrollbar-thumb:hover { background: rgba(79, 195, 247, 0.3); }
+
+.dream-skin-active [class*="sidebar"],
+.dream-skin-active [class*="Sidebar"],
+.dream-skin-active [class*="Navigation"],
+.dream-skin-active aside,
+.dream-skin-active nav {
+  background: var(--ds-panel) !important;
+  border-right: 1px solid var(--ds-border) !important;
+}
+
+.dream-skin-active [class*="sidebar"] [class*="item"]:hover,
+.dream-skin-active nav [role="button"]:hover {
+  background: var(--ds-accent-soft) !important;
+}
+
+.dream-skin-active [class*="message"],
+.dream-skin-active [class*="Message"],
+.dream-skin-active [class*="chat-message"],
+.dream-skin-active [class*="ChatMessage"] {
+  font-family: var(--ds-font-family) !important;
+  line-height: var(--ds-line-height) !important;
+  color: var(--ds-text) !important;
+}
+
+.dream-skin-active [class*="markdown"],
+.dream-skin-active [class*="Markdown"],
+.dream-skin-active [class*="prose"],
+.dream-skin-active .markdown-body,
+.dream-skin-active [class*="content"] [class*="text"] {
+  font-family: var(--ds-font-family) !important;
+  line-height: var(--ds-line-height) !important;
+  color: var(--ds-text) !important;
+}
+
+.dream-skin-active [class*="markdown"] h1,
+.dream-skin-active [class*="markdown"] h2,
+.dream-skin-active [class*="markdown"] h3,
+.dream-skin-active [class*="markdown"] h4,
+.dream-skin-active [class*="markdown"] h5,
+.dream-skin-active [class*="markdown"] h6 {
+  color: var(--ds-text) !important;
+  font-weight: 600 !important;
+  letter-spacing: -0.02em !important;
+  margin-top: 1.2em !important;
+  margin-bottom: 0.4em !important;
+}
+
+.dream-skin-active [class*="markdown"] h1 { font-size: 1.5em !important; }
+.dream-skin-active [class*="markdown"] h2 { font-size: 1.3em !important; }
+.dream-skin-active [class*="markdown"] h3 { font-size: 1.1em !important; }
+.dream-skin-active [class*="markdown"] p { margin-bottom: 0.8em !important; }
+
+.dream-skin-active [class*="markdown"] a {
+  color: var(--ds-accent) !important;
+  text-decoration: none !important;
+}
+.dream-skin-active [class*="markdown"] a:hover { text-decoration: underline !important; }
+
+.dream-skin-active [class*="markdown"] strong {
+  color: var(--ds-text) !important;
+  font-weight: 600 !important;
+}
+
+.dream-skin-active [class*="markdown"] blockquote {
+  border-left: 3px solid var(--ds-accent) !important;
+  padding-left: 12px !important;
+  margin-left: 0 !important;
+  color: var(--ds-muted) !important;
+  background: var(--ds-accent-soft) !important;
+  border-radius: 0 var(--ds-radius) var(--ds-radius) 0 !important;
+  padding: 8px 12px !important;
+}
+
+.dream-skin-active [class*="markdown"] ul,
+.dream-skin-active [class*="markdown"] ol { padding-left: 1.5em !important; }
+.dream-skin-active [class*="markdown"] li { margin-bottom: 0.3em !important; }
+.dream-skin-active [class*="markdown"] li::marker { color: var(--ds-accent) !important; }
+.dream-skin-active [class*="markdown"] hr {
+  border: none !important; border-top: 1px solid var(--ds-border) !important;
+  margin: 1.5em 0 !important;
+}
+
+.dream-skin-active pre,
+.dream-skin-active [class*="code-block"],
+.dream-skin-active [class*="CodeBlock"],
+.dream-skin-active pre[class*="language-"] {
+  background: var(--ds-bg) !important;
+  border: 1px solid var(--ds-border) !important;
+  border-radius: var(--ds-radius) !important;
+  padding: 16px !important;
+  overflow-x: auto !important;
+  font-family: var(--ds-font-mono) !important;
+  font-size: 13px !important;
+  line-height: 1.6 !important;
+}
+
+.dream-skin-active code,
+.dream-skin-active [class*="inline-code"],
+.dream-skin-active [class*="InlineCode"],
+.dream-skin-active p code,
+.dream-skin-active li code {
+  background: var(--ds-surface) !important;
+  border: 1px solid var(--ds-border) !important;
+  border-radius: 4px !important;
+  padding: 2px 6px !important;
+  font-family: var(--ds-font-mono) !important;
+  font-size: 0.9em !important;
+  color: var(--ds-accent) !important;
+}
+
+.dream-skin-active [contenteditable="true"],
+.dream-skin-active [role="textbox"],
+.dream-skin-active textarea,
+.dream-skin-active [class*="input"],
+.dream-skin-active [class*="Input"],
+.dream-skin-active [class*="composer"],
+.dream-skin-active [class*="Composer"] {
+  background: var(--ds-surface) !important;
+  color: var(--ds-text) !important;
+  border-color: var(--ds-border) !important;
+  border-radius: var(--ds-radius-lg) !important;
+  caret-color: var(--ds-accent) !important;
+}
+
+.dream-skin-active [contenteditable="true"]:focus,
+.dream-skin-active [role="textbox"]:focus,
+.dream-skin-active [class*="composer"]:focus-within {
+  border-color: var(--ds-accent) !important;
+  box-shadow: 0 0 0 2px var(--ds-accent-soft) !important;
+}
+
+.dream-skin-active ::selection {
+  background: rgba(var(--ds-accent-rgb), 0.3) !important;
+  color: white !important;
+}
+
+.dream-skin-active ::-moz-selection {
+  background: rgba(var(--ds-accent-rgb), 0.3) !important;
+  color: white !important;
+}

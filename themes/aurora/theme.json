@@ -1,0 +1,14 @@
+{
+  "name": "Aurora",
+  "displayName": "Aurora",
+  "author": "Claude Code Dream Skin",
+  "version": "1.0.0",
+  "description": "Northern lights inspired — vibrant teal, purple, and green gradients on dark",
+  "colors": {
+    "accent": "#00FFC8",
+    "bg": "#0a0e17",
+    "surface": "#111827",
+    "text": "#e0f0ff",
+    "muted": "#5a7a9a"
+  }
+}

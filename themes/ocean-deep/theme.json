@@ -1,0 +1,14 @@
+{
+  "name": "Ocean Deep",
+  "displayName": "Ocean Deep",
+  "author": "Claude Code Dream Skin",
+  "version": "1.0.0",
+  "description": "Deep ocean blues and teals with coral accents",
+  "colors": {
+    "accent": "#4FC3F7",
+    "bg": "#0b1622",
+    "surface": "#12233d",
+    "text": "#d4e8ff",
+    "muted": "#5a7a9a"
+  }
+}

@@ -1,0 +1,72 @@
+/* ============================================================
+   Midnight Glass Theme — Claude Code Dream Skin
+   Deep navy with glassmorphism and cool cyan accents
+   ============================================================ */
+
+:root[data-dream-skin="active"] {
+  color-scheme: dark !important;
+  --ds-bg: #0a0e17;
+  --ds-bg-rgb: 10, 14, 23;
+  --ds-panel: #111827;
+  --ds-panel-rgb: 17, 24, 39;
+  --ds-panel-2: #1a2332;
+  --ds-panel-2-rgb: 26, 35, 50;
+  --ds-surface: #1e293b;
+  --ds-surface-rgb: 30, 41, 59;
+  --ds-text: #e2e8f0;
+  --ds-text-rgb: 226, 232, 240;
+  --ds-muted: #64748b;
+  --ds-muted-rgb: 100, 116, 139;
+  --ds-green: #34d399;
+  --ds-lime: #a3e635;
+  --ds-cyan: #22d3ee;
+  --ds-purple: #a78bfa;
+  --ds-accent-rgb: 34, 211, 238;
+  --ds-secondary-rgb: 167, 139, 250;
+  --ds-highlight-rgb: 52, 211, 153;
+  --ds-accent: var(--ds-cyan);
+  --ds-accent-soft: rgba(34, 211, 238, 0.12);
+  --ds-secondary: var(--ds-purple);
+  --ds-highlight: var(--ds-green);
+  --ds-line: rgba(34, 211, 238, 0.08);
+  --ds-border: rgba(255, 255, 255, 0.06);
+  --ds-radius: 10px;
+  --ds-radius-lg: 14px;
+  --ds-font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --ds-font-mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+  --ds-line-height: 1.7;
+  --ds-transition: 250ms ease;
+  --ds-focus-x: 50%;
+  --ds-focus-y: 40%;
+  --dream-skin-name: "Midnight Glass";
+  --dream-skin-tagline: "Deep navy with cool cyan";
+}
+
+/* Glassmorphism effects */
+.dream-skin-active [class*="sidebar"],
+.dream-skin-active [class*="Sidebar"] {
+  background: rgba(17, 24, 39, 0.85) !important;
+  backdrop-filter: blur(20px) saturate(1.5) !important;
+  -webkit-backdrop-filter: blur(20px) saturate(1.5) !important;
+  border-right: 1px solid rgba(34, 211, 238, 0.08) !important;
+}
+
+.dream-skin-active [class*="message"] {
+  backdrop-filter: blur(8px) !important;
+  -webkit-backdrop-filter: blur(8px) !important;
+}
+
+.dream-skin-active [contenteditable="true"],
+.dream-skin-active [role="textbox"],
+.dream-skin-active [class*="composer"] {
+  backdrop-filter: blur(12px) !important;
+  -webkit-backdrop-filter: blur(12px) !important;
+  background: rgba(30, 41, 59, 0.7) !important;
+  border: 1px solid rgba(34, 211, 238, 0.1) !important;
+}
+
+.dream-skin-active [class*="send-button"],
+.dream-skin-active [class*="submit"] {
+  background: linear-gradient(135deg, var(--ds-accent), var(--ds-secondary)) !important;
+  box-shadow: 0 2px 12px rgba(34, 211, 238, 0.25) !important;
+}

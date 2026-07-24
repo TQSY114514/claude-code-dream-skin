@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>◈</text></svg>">
+  <title>Claude Code Dream Skin</title>
+  <link rel="stylesheet" href="styles/main.css">
+</head>
+<body>
+  <div id="app">
+    <!-- Title Bar -->
+    <div id="title-bar">
+      <div class="title-bar-left">
+        <span class="app-icon">◈</span>
+        <span class="app-title">Claude Code Dream Skin</span>
+        <span class="app-version">v0.1.0</span>
+      </div>
+      <div class="title-bar-right">
+        <button class="title-btn minimize-btn" id="btn-minimize" title="Minimize">−</button>
+        <button class="title-btn close-btn" id="btn-close" title="Close">×</button>
+      </div>
+    </div>
+
+    <!-- Status Bar -->
+    <div id="status-bar">
+      <div class="status-item" id="status-claude">
+        <span class="status-dot" id="claude-dot"></span>
+        <span id="claude-status-text">Checking...</span>
+      </div>
+      <div class="status-item" id="status-injection">
+        <span class="status-dot" id="injection-dot"></span>
+        <span id="injection-status-text">Not connected</span>
+      </div>
+    </div>
+
+    <!-- Main Content -->
+    <div id="main-content">
+      <!-- Tab Navigation -->
+      <div class="tab-nav">
+        <button class="tab-btn active" data-tab="themes">Themes</button>
+        <button class="tab-btn" data-tab="import">Import</button>
+        <button class="tab-btn" data-tab="backups">Backups</button>
+        <button class="tab-btn" data-tab="settings">Settings</button>
+      </div>
+
+      <!-- Tab: Themes -->
+      <div class="tab-panel active" id="tab-themes">
+        <div class="panel-header">
+          <h2>Themes</h2>
+          <p class="panel-subtitle">Select a theme to apply to Claude Desktop</p>
+        </div>
+        <div id="themes-grid" class="themes-grid">
+          <!-- Theme cards injected by JS -->
+        </div>
+        <div class="panel-actions">
+          <button class="btn btn-secondary" id="btn-refresh-themes">
+            ↻ Refresh
+          </button>
+          <button class="btn btn-secondary" id="btn-restore-default">
+            ⟲ Restore Default
+          </button>
+        </div>
+      </div>
+
+      <!-- Tab: Import -->
+      <div class="tab-panel" id="tab-import">
+        <div class="panel-header">
+          <h2>Import Theme</h2>
+          <p class="panel-subtitle">Install a theme from a .zip file or folder</p>
+        </div>
+        <div class="import-area" id="import-area">
+          <div class="import-icon">📦</div>
+          <p>Drop a theme .zip file here<br>or click to browse</p>
+          <button class="btn btn-primary" id="btn-browse-theme">Browse Files</button>
+        </div>
+        <div class="create-theme-section">
+          <h3>Create New Theme</h3>
+          <div class="form-group">
+            <label for="new-theme-name">Theme Name</label>
+            <input type="text" id="new-theme-name" placeholder="My Custom Theme" />
+          </div>
+          <div class="form-group">
+            <label for="new-theme-base">Base Theme (optional)</label>
+            <select id="new-theme-base">
+              <option value="">Blank Theme</option>
+            </select>
+          </div>
+          <button class="btn btn-primary" id="btn-create-theme">Create Theme</button>
+        </div>
+      </div>
+
+      <!-- Tab: Backups -->
+      <div class="tab-panel" id="tab-backups">
+        <div class="panel-header">
+          <h2>Backups</h2>
+          <p class="panel-subtitle">Restore to a previous theme state</p>
+        </div>
+        <div id="backups-list" class="backups-list">
+          <!-- Backup items injected by JS -->
+        </div>
+        <button class="btn btn-secondary" id="btn-create-backup">Create Backup Now</button>
+      </div>
+
+      <!-- Tab: Settings -->
+      <div class="tab-panel" id="tab-settings">
+        <div class="panel-header">
+          <h2>Settings</h2>
+          <p class="panel-subtitle">Configure Dream Skin behavior</p>
+        </div>
+        <div class="settings-list">
+          <div class="setting-item">
+            <div class="setting-info">
+              <span class="setting-label">Launch with CDP</span>
+              <span class="setting-desc">Restart Claude Desktop with remote debugging port</span>
+            </div>
+            <button class="btn btn-primary" id="btn-launch-cdp">Launch Claude + CDP</button>
+          </div>
+          <div class="setting-item">
+            <div class="setting-info">
+              <span class="setting-label">Refresh Injection</span>
+              <span class="setting-desc">Re-apply current theme to Claude Desktop</span>
+            </div>
+            <button class="btn btn-secondary" id="btn-refresh-injection">Refresh</button>
+          </div>
+          <div class="setting-item">
+            <div class="setting-info">
+              <span class="setting-label">Claude Desktop Path</span>
+              <span class="setting-desc" id="setting-claude-path">Auto-detected</span>
+            </div>
+          </div>
+          <div class="setting-item">
+            <div class="setting-info">
+              <span class="setting-label">User Data Directory</span>
+              <span class="setting-desc" id="setting-user-data-dir">Auto-detected</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Error Toast -->
+    <div id="toast" class="toast hidden">
+      <span class="toast-icon">⚠</span>
+      <span class="toast-message" id="toast-message"></span>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

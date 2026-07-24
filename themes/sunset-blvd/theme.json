@@ -1,0 +1,14 @@
+{
+  "name": "Sunset Boulevard",
+  "displayName": "Sunset Boulevard",
+  "author": "Claude Code Dream Skin",
+  "version": "1.0.0",
+  "description": "Warm sunset tones — deep purple to vibrant orange gradients",
+  "colors": {
+    "accent": "#FF6B6B",
+    "bg": "#1a0f1f",
+    "surface": "#251530",
+    "text": "#f0e0e8",
+    "muted": "#8a6a80"
+  }
+}

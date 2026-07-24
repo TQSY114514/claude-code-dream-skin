@@ -1,0 +1,14 @@
+{
+  "name": "Default",
+  "displayName": "Default",
+  "author": "Claude Code Dream Skin",
+  "version": "1.0.0",
+  "description": "Clean, minimal styling with Claude's signature orange accent",
+  "colors": {
+    "accent": "#FF6B35",
+    "bg": "#0d0d0f",
+    "surface": "#141417",
+    "text": "#e8e8ec",
+    "muted": "#6e6e80"
+  }
+}

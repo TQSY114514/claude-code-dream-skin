@@ -1,0 +1,31 @@
+/* Forest Mist Theme */
+:root[data-dream-skin="active"] {
+  color-scheme: dark !important;
+  --ds-bg: #0f1a12;
+  --ds-panel: #162018;
+  --ds-panel-2: #1d2a22;
+  --ds-panel-2: #1d2a22;
+  --ds-green: #8fc9a0;
+  --ds-lime: #b5d4b5;
+  --ds-cyan: #6ba88a;
+  --ds-purple: #a0b8c8;
+  --ds-text: #d4e8d4;
+  --ds-muted: #5a7a62;
+  --ds-line: rgba(111, 169, 130, .15);
+  --ds-bg-rgb: 15 26 18;
+  --ds-panel-rgb: 22 32 24;
+  --ds-panel-2-rgb: 29 42 34;
+  --ds-text-rgb: 212 232 212;
+  --ds-muted-rgb: 90 122 98;
+  --ds-accent-rgb: 111 169 130;
+  --ds-secondary-rgb: 160 184 200;
+  --ds-highlight-rgb: 143 201 160;
+  --ds-accent: var(--ds-green);
+  --ds-accent-soft: var(--ds-lime);
+  --ds-secondary: var(--ds-cyan);
+  --ds-highlight: var(--ds-purple);
+  --ds-focus-x: 50%;
+  --ds-focus-y: 55%;
+  --dream-skin-name: "Forest Mist";
+  --dream-skin-tagline: "Natural green tones";
+}

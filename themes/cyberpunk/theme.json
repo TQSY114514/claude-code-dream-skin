@@ -1,0 +1,14 @@
+{
+  "name": "Cyberpunk",
+  "displayName": "Cyberpunk",
+  "author": "Claude Code Dream Skin",
+  "version": "1.0.0",
+  "description": "Neon-lit dystopia — electric yellow, cyan, and magenta on pure black",
+  "colors": {
+    "accent": "#FCEE0A",
+    "bg": "#000000",
+    "surface": "#0a0a0f",
+    "text": "#FCEE0A",
+    "muted": "#585858"
+  }
+}

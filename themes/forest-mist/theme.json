@@ -1,0 +1,15 @@
+{
+  "name": "Forest Mist",
+  "displayName": "Forest Mist",
+  "author": "Claude Code Dream Skin",
+  "version": "1.0.0",
+  "description": "Natural green tones inspired by forest environments",
+  "colors": {
+    "accent": "#8fc9a0",
+    "bg": "#0f1a12",
+    "panel": "#162018",
+    "surface": "#1d2a22",
+    "text": "#d4e8d4",
+    "muted": "#5a7a62"
+  }
+}

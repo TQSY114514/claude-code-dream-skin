@@ -1,0 +1,15 @@
+{
+  "name": "Sakura Dream",
+  "displayName": "Sakura Dream",
+  "author": "Claude Code Dream Skin",
+  "version": "1.0.0",
+  "description": "Soft pink and purple anime-inspired palette",
+  "colors": {
+    "accent": "#e8a0c0",
+    "bg": "#1a0f1e",
+    "panel": "#241828",
+    "surface": "#2e2038",
+    "text": "#f0e0ee",
+    "muted": "#8a6a8e"
+  }
+}

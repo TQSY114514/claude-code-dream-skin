@@ -1,0 +1,15 @@
+{
+  "name": "Tokyo Night",
+  "displayName": "Tokyo Night",
+  "author": "Claude Code Dream Skin",
+  "version": "1.0.0",
+  "description": "Tokyo-inspired dark palette with vibrant accents",
+  "colors": {
+    "accent": "#7dcfff",
+    "bg": "#1a1b26",
+    "panel": "#24283b",
+    "surface": "#2f334d",
+    "text": "#c0caf5",
+    "muted": "#565f89"
+  }
+}

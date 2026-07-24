@@ -1,0 +1,14 @@
+{
+  "name": "Rosé Pine",
+  "displayName": "Rosé Pine",
+  "author": "Rosé Pine",
+  "version": "1.0.0",
+  "description": "Elegant and classy — subtle rose tones with starry pine backgrounds",
+  "colors": {
+    "accent": "#c4a7e7",
+    "bg": "#191724",
+    "surface": "#26233a",
+    "text": "#e0def4",
+    "muted": "#6e6a86"
+  }
+}

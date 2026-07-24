@@ -1,0 +1,14 @@
+{
+  "name": "Solarized Light",
+  "displayName": "Solarized Light",
+  "author": "Ethanol",
+  "version": "1.0.0",
+  "description": "Precision colors for syntax highlighting — light variant for daytime use",
+  "colors": {
+    "accent": "#268bd2",
+    "bg": "#fdf6e3",
+    "surface": "#eee8d5",
+    "text": "#657b83",
+    "muted": "#93a1a1"
+  }
+}

@@ -1,0 +1,31 @@
+/* Tokyo Night Theme */
+:root[data-dream-skin="active"] {
+  color-scheme: dark !important;
+  --ds-bg: #1a1b26;
+  --ds-panel: #24283b;
+  --ds-panel-2: #2f334d;
+  --ds-panel-2: #2f334d;
+  --ds-green: #73daca;
+  --ds-lime: #c0e5a5;
+  --ds-cyan: #7dcfff;
+  --ds-purple: #bb9af7;
+  --ds-text: #c0caf5;
+  --ds-muted: #565f89;
+  --ds-line: rgba(125, 207, 255, .12);
+  --ds-bg-rgb: 26 27 38;
+  --ds-panel-rgb: 36 40 59;
+  --ds-panel-2-rgb: 47 51 77;
+  --ds-text-rgb: 192 202 245;
+  --ds-muted-rgb: 86 95 137;
+  --ds-accent-rgb: 125 207 255;
+  --ds-secondary-rgb: 187 154 247;
+  --ds-highlight-rgb: 115 218 202;
+  --ds-accent: var(--ds-cyan);
+  --ds-accent-soft: var(--ds-purple);
+  --ds-secondary: var(--ds-purple);
+  --ds-highlight: var(--ds-green);
+  --ds-focus-x: 60%;
+  --ds-focus-y: 40%;
+  --dream-skin-name: "Tokyo Night";
+  --dream-skin-tagline: "Tokyo-inspired dark palette";
+}

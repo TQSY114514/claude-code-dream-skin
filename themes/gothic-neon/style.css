@@ -1,0 +1,31 @@
+/* Gothic Neon Theme - Default Preset */
+:root[data-dream-skin="active"] {
+  color-scheme: dark !important;
+  --ds-bg: #0a0a14;
+  --ds-panel: #0f0f1a;
+  --ds-panel-2: #15152a;
+  --ds-panel-2: #15152a;
+  --ds-green: #7ec8e3;
+  --ds-lime: #a0d2db;
+  --ds-cyan: #7ec8e3;
+  --ds-purple: #b388ff;
+  --ds-text: #e0e0ff;
+  --ds-muted: #6a6a8e;
+  --ds-line: rgba(126, 200, 227, .15);
+  --ds-bg-rgb: 10 10 20;
+  --ds-panel-rgb: 15 15 26;
+  --ds-panel-2-rgb: 21 21 42;
+  --ds-text-rgb: 224 224 255;
+  --ds-muted-rgb: 106 106 142;
+  --ds-accent-rgb: 126 200 227;
+  --ds-secondary-rgb: 179 136 255;
+  --ds-highlight-rgb: 126 200 227;
+  --ds-accent: var(--ds-cyan);
+  --ds-accent-soft: var(--ds-purple);
+  --ds-secondary: var(--ds-purple);
+  --ds-highlight: var(--ds-lime);
+  --ds-focus-x: 65%;
+  --ds-focus-y: 45%;
+  --dream-skin-name: "Gothic Neon";
+  --dream-skin-tagline: "Dark cyberpunk aesthetic";
+}
