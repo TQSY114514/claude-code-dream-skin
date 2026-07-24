@@ -35,13 +35,17 @@ class ProcessManager {
       return { path: customPath, source: 'custom' };
     }
 
-    // Scan WindowsApps for Claude MSIX
-    const windowsApps = path.join('C:', 'Program Files', 'WindowsApps');
-    if (fs.existsSync(windowsApps)) {
+    // Scan WindowsApps for Claude MSIX — check multiple drive locations
+    const windowsAppsPaths = [
+      path.join('C:', 'Program Files', 'WindowsApps'),
+      path.join('D:', 'WindowsApps'),
+      path.join('E:', 'WindowsApps'),
+    ];
+
+    for (const windowsApps of windowsAppsPaths) {
+      if (!fs.existsSync(windowsApps)) continue;
       try {
         const dirs = fs.readdirSync(windowsApps);
-        const claudeDir = dirs.find(d => d.startsWith('Claude_') && d.endsWith('.exe') === false && fs.existsSync(path.join(windowsApps, d, 'app', 'Claude.exe')));
-        // Also check for the correct pattern
         for (const d of dirs) {
           if (d.startsWith('Claude_')) {
             const exePath = path.join(windowsApps, d, 'app', 'Claude.exe');
@@ -49,13 +53,13 @@ class ProcessManager {
               return {
                 path: exePath,
                 source: 'windows-apps',
-                version: d.replace('Claude_', '').replace('_x64__pzs8sxrjxfjjc', '')
+                version: d.replace('Claude_', '').replace(/_x64__.*$/, '')
               };
             }
           }
         }
       } catch (e) {
-        // Permission error reading WindowsApps - try WMIC
+        // Permission error reading this WindowsApps directory, try next
       }
     }
 
@@ -81,12 +85,16 @@ class ProcessManager {
    */
   findUserDataDir() {
     // Try localappdata\Claude-3p (standard for the Store/MSIX version)
-    const claude3p = path.join(os.homedir(), 'AppData', 'Local', 'Claude-3p');
-    if (fs.existsSync(claude3p)) {
-      return claude3p;
-    }
 
-    // Try wmic for user-data-dir
+    const candidates = [
+      path.join(os.homedir(), 'AppData', 'Local', 'Claude-3p'),
+      path.join('D:', 'Claude-3p'),
+      path.join(os.homedir(), 'AppData', 'Local', 'Claude'),
+    ];
+    for (const dir of candidates) {
+      if (fs.existsSync(dir)) return dir;
+    }
+// Try wmic for user-data-dir
     try {
       const output = execSync(
         'wmic process where "name=\'Claude.exe\'" get CommandLine /format:list',
