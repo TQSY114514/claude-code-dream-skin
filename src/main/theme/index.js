@@ -297,25 +297,10 @@ class ThemeEngine {
   }
 
   getInjectionCSS(themeCSS, backgroundBase64) {
-    // Load the compiled skin CSS (pre-processed by sync-runtime-assets.mjs at build time)
-    let skinCSS = '';
-    try {
-      const compiledPath = path.join(__dirname, '..', '..', '..', 'runtime', 'dream-skin-compiled.css');
-      const sourcePath = path.join(__dirname, '..', '..', '..', 'runtime', 'dream-skin.css');
-      if (fs.existsSync(compiledPath)) {
-        skinCSS = fs.readFileSync(compiledPath, 'utf8');
-      } else {
-        skinCSS = fs.readFileSync(sourcePath, 'utf8');
-      }
-    } catch (e) {
-      console.warn('[ThemeEngine] Skin CSS load failed:', e.message);
-    }
-    // skinCSS contains all Claude Desktop specific rules with resolved selectors.
-    // themeCSS (per-theme) provides CSS custom property overrides and is appended
-    // after so it takes precedence via cascade order.
-    return skinCSS + '\n\n' + themeCSS + '\n';
+    // Returns only theme-specific CSS variable overrides.
+    // The full skin CSS is loaded by the CDP injector from runtime/.
+    return themeCSS || '';
   }
-
 
   backupCurrentTheme() {
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);

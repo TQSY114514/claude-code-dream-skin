@@ -38,7 +38,7 @@
   const ANALYSIS_CACHE = new Map();
   const HUE_BINS = 24;
 
-  function analyzeImage(base64DataUrl) {
+  async function analyzeImage(base64DataUrl) {
     if (ANALYSIS_CACHE.has(base64DataUrl)) return ANALYSIS_CACHE.get(base64DataUrl);
 
     const result = { dominantHue: 0, accentRgb: [130, 152, 163], brightness: 0.45, focusX: 50, focusY: 50, saturation: 0.5, side: 'left' };

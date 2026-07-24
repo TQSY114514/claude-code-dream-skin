@@ -94,11 +94,10 @@ async function testThemeEngine() {
     assert(fs.existsSync(path.join(ROOT, 'themes', 'test-theme', 'style.css')), 'style.css exists');
   });
 
-  test('getInjectionCSS combines skin CSS with theme overrides', () => {
+  test('getInjectionCSS returns theme CSS', () => {
     const inputCSS = ':root { --ds-bg: #111; }';
     const result = ThemeEngine.getInjectionCSS(inputCSS, null);
-    assert(result.includes('--ds-bg: #111'), 'Contains theme CSS');
-    assert(result.includes('data-dream-skin="active"') || result.includes('__DREAM_SELECTOR') || result.includes('aside'), 'Contains skin CSS (selectors or data attributes)');
+    assert(result === inputCSS, 'Returns only theme CSS without skin CSS');
   });
 
   test('deleteTheme removes a theme', () => {

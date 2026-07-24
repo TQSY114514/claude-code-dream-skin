@@ -1,7 +1,33 @@
 const CDP = require('chrome-remote-interface');
 const fs = require('fs');
 const path = require('path');
-const http = require('http');
+
+// Token → selector key mapping (mirrors tools/sync-runtime-assets.mjs)
+const TOKEN_MAP = {
+  '__DREAM_SELECTOR_SHELL_MAIN__':        'shell-main',
+  '__DREAM_SELECTOR_LEFT_PANEL__':        'left-panel',
+  '__DREAM_SELECTOR_HEADER_TINT__':       'header-tint',
+  '__DREAM_SELECTOR_COMPOSER_CHROME__':   'composer-chrome',
+  '__DREAM_SELECTOR_HOME_ROUTE__':        'home-route',
+  '__DREAM_SELECTOR_HOME_SUGGESTIONS__':  'home-suggestions',
+  '__DREAM_SELECTOR_MARKDOWN__':          'markdown',
+  '__DREAM_SELECTOR_MESSAGE__':           'message',
+  '__DREAM_SELECTOR_CODE_BLOCK__':        'code-block',
+  '__DREAM_SELECTOR_SEND_BUTTON__':       'send-button',
+};
+
+const SELECTORS = {
+  'shell-main':       'main, [role="main"], [class*="content"]',
+  'left-panel':       'aside, nav, [class*="sidebar"], [class*="Sidebar"], [class*="nav-"], [class*="Navigation"]',
+  'header-tint':      'header, [class*="header"], [class*="Header"], [class*="top-bar"], [class*="TopBar"]',
+  'composer-chrome':  '[contenteditable="true"], [role="textbox"], [class*="composer"], [class*="Composer"], [class*="input"], textarea',
+  'home-route':       '[class*="home"], [class*="Home"], [class*="welcome"], [class*="Welcome"]',
+  'home-suggestions': '[class*="suggestion"], [class*="Suggestion"], [class*="starter"], [class*="Starter"]',
+  'markdown':         '[class*="markdown"], [class*="Markdown"], .markdown-body, [class*="prose"], article',
+  'message':          '[class*="message"], [class*="Message"], [class*="chat-message"], [class*="ChatMessage"]',
+  'code-block':       'pre, code, [class*="code"], [class*="Code"], pre[class*="language-"]',
+  'send-button':      '[class*="send"], [class*="Submit"], [class*="submit"], button[type="submit"]',
+};
 
 /**
  * CDP-based CSS injector for Electron apps.
@@ -43,14 +69,25 @@ class CDPInjector {
   }
 
   _loadSkinCSS() {
-    // Try compiled first, fall back to source
+    // Try compiled first, fall back to source with runtime token resolution
     const compiledPath = path.join(__dirname, '..', '..', '..', 'runtime', 'dream-skin-compiled.css');
     const sourcePath = path.join(__dirname, '..', '..', '..', 'runtime', 'dream-skin.css');
-    try {
-      if (fs.existsSync(compiledPath)) {
+
+    // Prefer compiled (tokens already replaced at build time)
+    if (fs.existsSync(compiledPath)) {
+      try {
         return fs.readFileSync(compiledPath, 'utf-8');
+      } catch (_) {}
+    }
+
+    // Fall back to source — replace tokens at runtime using pre-defined selectors
+    try {
+      let css = fs.readFileSync(sourcePath, 'utf-8');
+      for (const [token, key] of Object.entries(TOKEN_MAP)) {
+        const selector = SELECTORS[key] || '*';
+        css = css.split(token).join(selector);
       }
-      return fs.readFileSync(sourcePath, 'utf-8');
+      return css;
     } catch (e) {
       console.warn('[CDPInjector] Skin CSS not found:', e.message);
       return null;
@@ -155,19 +192,39 @@ class CDPInjector {
         }
       }
 
-      // Step 2: Inject renderer engine (JS) — chunked for large scripts
+      // Step 2: Inject renderer engine (JS) — the script IS the IIFE itself,
+      // so we inject the whole thing in one go. If it's too large (>65KB),
+      // we fall back to creating a blob URL approach.
       if (this._injectorCode) {
-        const chunks = this._chunkCode(this._injectorCode, 50000);
-        for (let i = 0; i < chunks.length; i++) {
-          try {
+        const code = this._injectorCode;
+        try {
+          if (code.length <= 60000) {
+            // Small enough for single expression
             await pageClient.Runtime.evaluate({
-              expression: chunks[i],
+              expression: code,
               returnByValue: true,
-              timeout: 10000,
+              timeout: 15000,
             });
-          } catch (e) {
-            console.warn(`[CDPInjector] JS chunk ${i} error: ${e.message}`);
+          } else {
+            // Large script: inject via script element creation
+            await pageClient.Runtime.evaluate({
+              expression: `
+                (function() {
+                  if (window.__dreamSkinInjected) return 'already_present';
+                  window.__dreamSkinInjected = true;
+                  var s = document.createElement('script');
+                  s.textContent = ${JSON.stringify(code)};
+                  document.head.appendChild(s);
+                  s.remove();
+                  return 'injected';
+                })()
+              `,
+              returnByValue: true,
+              timeout: 15000,
+            });
           }
+        } catch (e) {
+          console.warn(`[CDPInjector] JS injection error: ${e.message}`);
         }
       }
 
@@ -325,13 +382,14 @@ class CDPInjector {
   _restoreCode() {
     return `
       (function() {
-        let removed = 0;
-        document.querySelectorAll('style, link[rel="stylesheet"]').forEach(function(el) {
-          if (el.title === 'CDP-DreamSkin') { el.remove(); removed++; }
+        // Remove CSS injected via CDP
+        document.querySelectorAll('style[title="CDP-DreamSkin"], link[title="CDP-DreamSkin"]').forEach(function(el) {
+          el.remove();
         });
-        try { sessionStorage.removeItem('__dreamSkin_bg'); } catch(e) {}
+        // Clean up JS state
         try { removeTheme(); } catch(e) {}
-        return removed;
+        try { sessionStorage.removeItem('__dreamSkin_bg'); } catch(e) {}
+        return 'restored';
       })()
     `;
   }
