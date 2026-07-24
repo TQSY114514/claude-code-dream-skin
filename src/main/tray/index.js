@@ -4,6 +4,7 @@ const os = require('os');
 const ThemeEngine = require('../theme');
 const CDPInjector = require('../injector');
 const ProcessManager = require('../process-manager');
+const { detectLocale, getLocale } = require('../locales');
 
 class SkinManager {
   constructor() {
@@ -15,6 +16,29 @@ class SkinManager {
     this.claudeRunning = false;
     this.injectionStatus = { connected: false, injecting: false, error: null };
     this.trayUpdateInterval = null;
+    this.locale = this._loadLocale();
+  }
+
+  _loadLocale() {
+    try {
+      const store = require('electron-store');
+      const s = new store({ name: 'settings' });
+      return s.get('locale') || detectLocale();
+    } catch (_) {
+      return detectLocale();
+    }
+  }
+
+  _saveLocale(locale) {
+    try {
+      const store = require('electron-store');
+      const s = new store({ name: 'settings' });
+      s.set('locale', locale);
+    } catch (_) {}
+  }
+
+  t(key) {
+    return getLocale(this.locale)[key] || key;
   }
 
   start() {
@@ -201,21 +225,21 @@ class SkinManager {
 
     const template = [
       {
-        label: 'Claude Code Dream Skin',
+        label: this.t('trayAppName'),
         enabled: false,
       },
       { type: 'separator' },
       {
-        label: this.claudeRunning ? 'Claude: Running' : 'Claude: Not Running',
+        label: this.claudeRunning ? this.t('claudeRunning') : this.t('claudeNotRunning'),
         enabled: false,
         icon: this.claudeRunning ? '✅' : '❌',
       },
       {
-        label: this.injectionStatus.connected ? 'Theme: Active' : 'Theme: Inactive',
+        label: this.injectionStatus.connected ? this.t('themeActive') : this.t('themeInactive'),
         enabled: false,
       },
       { type: 'separator' },
-      { label: 'Show Manager', click: () => this.showWindow() },
+      { label: this.t('showManager'), click: () => this.showWindow() },
       { type: 'separator' },
     ];
 
@@ -227,15 +251,15 @@ class SkinManager {
         type: 'radio',
         checked: t.name === currentTheme,
       }));
-      template.push({ label: 'Switch Theme', submenu: themeSubmenu });
+      template.push({ label: this.t('switchTheme'), submenu: themeSubmenu });
     }
 
     template.push(
       { type: 'separator' },
-      { label: 'Restore Default', click: () => this.restoreDefault() },
-      { label: 'Manage Themes...', click: () => this.showWindow() },
+      { label: this.t('restoreDefault'), click: () => this.restoreDefault() },
+      { label: this.t('manageThemes'), click: () => this.showWindow() },
       { type: 'separator' },
-      { label: 'Quit', click: () => { app.isQuitting = true; app.quit(); } }
+      { label: this.t('quit'), click: () => { app.isQuitting = true; app.quit(); } }
     );
 
     this.tray.setContextMenu(Menu.buildFromTemplate(template));

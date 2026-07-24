@@ -1,6 +1,7 @@
 const { app, BrowserWindow, ipcMain, dialog } = require('electron');
 const path = require('path');
 const SkinManager = require('./tray');
+const { getLocale, getAvailableLocales, detectLocale } = require('./locales');
 
 // Disable default menu bar
 app.disableHardwareAcceleration();
@@ -96,3 +97,14 @@ ipcMain.handle('dialog:save-file', async (_, options) => {
   const result = await dialog.showSaveDialog(skinManager.mainWindow, options);
   return result;
 });
+
+// Locale operations
+ipcMain.handle('locale:get', () => skinManager.locale);
+ipcMain.handle('locale:list', () => getAvailableLocales());
+ipcMain.handle('locale:set', (_, locale) => {
+  skinManager.locale = locale;
+  skinManager._saveLocale(locale);
+  skinManager.updateTrayMenu();
+  return locale;
+});
+ipcMain.handle('locale:t', (_, key) => skinManager.t(key));

@@ -600,6 +600,33 @@ html, body {
   color: var(--text-muted);
 }
 
+.lang-btns {
+  display: flex;
+  gap: 6px;
+}
+
+.lang-btn {
+  padding: 4px 12px;
+  font-size: 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.lang-btn:hover {
+  border-color: var(--border-hover);
+  color: var(--text-primary);
+}
+
+.lang-btn.active {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-glow);
+}
+
 /* ── Toast ── */
 .toast {
   position: fixed;

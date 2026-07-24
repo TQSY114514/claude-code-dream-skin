@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>◈</text></svg>">
-  <title>Claude Code Dream Skin</title>
+  <title data-i18n="appTitle">Claude Code Dream Skin</title>
   <link rel="stylesheet" href="styles/main.css">
 </head>
 <body>
@@ -13,7 +13,7 @@
     <div id="title-bar">
       <div class="title-bar-left">
         <span class="app-icon">◈</span>
-        <span class="app-title">Claude Code Dream Skin</span>
+        <span class="app-title" data-i18n="appTitle">Claude Code Dream Skin</span>
         <span class="app-version">v0.1.0</span>
       </div>
       <div class="title-bar-right">
@@ -26,11 +26,11 @@
     <div id="status-bar">
       <div class="status-item" id="status-claude">
         <span class="status-dot" id="claude-dot"></span>
-        <span id="claude-status-text">Checking...</span>
+        <span id="claude-status-text" data-i18n="checking">Checking...</span>
       </div>
       <div class="status-item" id="status-injection">
         <span class="status-dot" id="injection-dot"></span>
-        <span id="injection-status-text">Not connected</span>
+        <span id="injection-status-text" data-i18n="notConnected">Not connected</span>
       </div>
     </div>
 
@@ -38,101 +38,107 @@
     <div id="main-content">
       <!-- Tab Navigation -->
       <div class="tab-nav">
-        <button class="tab-btn active" data-tab="themes">Themes</button>
-        <button class="tab-btn" data-tab="import">Import</button>
-        <button class="tab-btn" data-tab="backups">Backups</button>
-        <button class="tab-btn" data-tab="settings">Settings</button>
+        <button class="tab-btn active" data-tab="themes" data-i18n="tabThemes">Themes</button>
+        <button class="tab-btn" data-tab="import" data-i18n="tabImport">Import</button>
+        <button class="tab-btn" data-tab="backups" data-i18n="tabBackups">Backups</button>
+        <button class="tab-btn" data-tab="settings" data-i18n="tabSettings">Settings</button>
       </div>
 
       <!-- Tab: Themes -->
       <div class="tab-panel active" id="tab-themes">
         <div class="panel-header">
-          <h2>Themes</h2>
-          <p class="panel-subtitle">Select a theme to apply to Claude Desktop</p>
+          <h2 data-i18n="themesTitle">Themes</h2>
+          <p class="panel-subtitle" data-i18n="themesSubtitle">Select a theme to apply to Claude Desktop</p>
         </div>
         <div id="themes-grid" class="themes-grid">
           <!-- Theme cards injected by JS -->
         </div>
         <div class="panel-actions">
-          <button class="btn btn-secondary" id="btn-refresh-themes">
-            ↻ Refresh
-          </button>
-          <button class="btn btn-secondary" id="btn-restore-default">
-            ⟲ Restore Default
-          </button>
+          <button class="btn btn-secondary" id="btn-refresh-themes" data-i18n="refreshBtn">↻ Refresh</button>
+          <button class="btn btn-secondary" id="btn-restore-default" data-i18n="restoreBtn">⟲ Restore Default</button>
         </div>
       </div>
 
       <!-- Tab: Import -->
       <div class="tab-panel" id="tab-import">
         <div class="panel-header">
-          <h2>Import Theme</h2>
-          <p class="panel-subtitle">Install a theme from a .zip file or folder</p>
+          <h2 data-i18n="importTitle">Import Theme</h2>
+          <p class="panel-subtitle" data-i18n="importSubtitle">Install a theme from a .zip file or folder</p>
         </div>
         <div class="import-area" id="import-area">
           <div class="import-icon">📦</div>
-          <p>Drop a theme .zip file here<br>or click to browse</p>
-          <button class="btn btn-primary" id="btn-browse-theme">Browse Files</button>
+          <p data-i18n="dropText">Drop a theme .zip file here, or click to browse</p>
+          <button class="btn btn-primary" id="btn-browse-theme" data-i18n="browseBtn">Browse Files</button>
         </div>
         <div class="create-theme-section">
-          <h3>Create New Theme</h3>
+          <h3 data-i18n="createTitle">Create New Theme</h3>
           <div class="form-group">
-            <label for="new-theme-name">Theme Name</label>
-            <input type="text" id="new-theme-name" placeholder="My Custom Theme" />
+            <label for="new-theme-name" data-i18n="createNameLabel">Theme Name</label>
+            <input type="text" id="new-theme-name" data-i18n-placeholder="createNamePlaceholder" />
           </div>
           <div class="form-group">
-            <label for="new-theme-base">Base Theme (optional)</label>
+            <label for="new-theme-base" data-i18n="createBaseLabel">Base Theme (optional)</label>
             <select id="new-theme-base">
-              <option value="">Blank Theme</option>
+              <option value="" data-i18n="createBlank">Blank Theme</option>
             </select>
           </div>
-          <button class="btn btn-primary" id="btn-create-theme">Create Theme</button>
+          <button class="btn btn-primary" id="btn-create-theme" data-i18n="createBtn">Create Theme</button>
         </div>
       </div>
 
       <!-- Tab: Backups -->
       <div class="tab-panel" id="tab-backups">
         <div class="panel-header">
-          <h2>Backups</h2>
-          <p class="panel-subtitle">Restore to a previous theme state</p>
+          <h2 data-i18n="backupsTitle">Backups</h2>
+          <p class="panel-subtitle" data-i18n="backupsSubtitle">Restore to a previous theme state</p>
         </div>
         <div id="backups-list" class="backups-list">
           <!-- Backup items injected by JS -->
         </div>
-        <button class="btn btn-secondary" id="btn-create-backup">Create Backup Now</button>
+        <button class="btn btn-secondary" id="btn-create-backup" data-i18n="createBackupBtn">Backup Now</button>
       </div>
 
       <!-- Tab: Settings -->
       <div class="tab-panel" id="tab-settings">
         <div class="panel-header">
-          <h2>Settings</h2>
-          <p class="panel-subtitle">Configure Dream Skin behavior</p>
+          <h2 data-i18n="settingsTitle">Settings</h2>
+          <p class="panel-subtitle" data-i18n="settingsSubtitle">Configure Dream Skin behavior</p>
         </div>
         <div class="settings-list">
           <div class="setting-item">
             <div class="setting-info">
-              <span class="setting-label">Launch with CDP</span>
-              <span class="setting-desc">Restart Claude Desktop with remote debugging port</span>
+              <span class="setting-label" data-i18n="launchCdpLabel">Launch with CDP</span>
+              <span class="setting-desc" data-i18n="launchCdpDesc">Restart Claude Desktop with remote debugging port</span>
             </div>
-            <button class="btn btn-primary" id="btn-launch-cdp">Launch Claude + CDP</button>
+            <button class="btn btn-primary" id="btn-launch-cdp" data-i18n="launchCdpBtn">Launch Claude + CDP</button>
           </div>
           <div class="setting-item">
             <div class="setting-info">
-              <span class="setting-label">Refresh Injection</span>
-              <span class="setting-desc">Re-apply current theme to Claude Desktop</span>
+              <span class="setting-label" data-i18n="refreshInjectLabel">Refresh Injection</span>
+              <span class="setting-desc" data-i18n="refreshInjectDesc">Re-apply current theme to Claude Desktop</span>
             </div>
-            <button class="btn btn-secondary" id="btn-refresh-injection">Refresh</button>
+            <button class="btn btn-secondary" id="btn-refresh-injection" data-i18n="refreshInjectBtn">Refresh</button>
           </div>
           <div class="setting-item">
             <div class="setting-info">
-              <span class="setting-label">Claude Desktop Path</span>
-              <span class="setting-desc" id="setting-claude-path">Auto-detected</span>
+              <span class="setting-label" data-i18n="claudePathLabel">Claude Desktop Path</span>
+              <span class="setting-desc" id="setting-claude-path" data-i18n="claudePathDesc">Auto-detected</span>
             </div>
           </div>
           <div class="setting-item">
             <div class="setting-info">
-              <span class="setting-label">User Data Directory</span>
-              <span class="setting-desc" id="setting-user-data-dir">Auto-detected</span>
+              <span class="setting-label" data-i18n="userDataLabel">User Data Directory</span>
+              <span class="setting-desc" id="setting-user-data-dir" data-i18n="userDataDesc">Auto-detected</span>
+            </div>
+          </div>
+          <div class="setting-item">
+            <div class="setting-info">
+              <span class="setting-label" data-i18n="langLabel">Language</span>
+              <span class="setting-desc" id="current-lang-label">English</span>
+            </div>
+            <div class="lang-btns">
+              <button class="btn btn-small lang-btn" data-lang="zh-CN">中文</button>
+              <button class="btn btn-small lang-btn active" data-lang="en">EN</button>
             </div>
           </div>
         </div>
@@ -146,6 +152,7 @@
     </div>
   </div>
 
+  <script src="locales.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

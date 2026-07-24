@@ -15,6 +15,63 @@ let currentBackups = [];
 let activeThemeName = null;
 let toastTimer = null;
 
+// ── i18n ────────────────────────────────────────────────────────────────────
+
+function applyLocale(locale) {
+  // Update all elements with data-i18n attribute
+  document.querySelectorAll('[data-i18n]').forEach(el => {
+    const key = el.getAttribute('data-i18n');
+    const translation = window.__dreamSkinLocale?.t(key);
+    if (translation) {
+      if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') {
+        el.placeholder = translation;
+      } else {
+        el.textContent = translation;
+      }
+    }
+  });
+
+  // Update document title
+  const titleEl = document.querySelector('title[data-i18n]');
+  if (titleEl) {
+    const titleKey = titleEl.getAttribute('data-i18n');
+    const titleT = window.__dreamSkinLocale?.t(titleKey);
+    if (titleT) document.title = titleT;
+  }
+
+  // Update html lang attribute
+  document.documentElement.lang = locale === 'zh-CN' ? 'zh-CN' : 'en';
+
+  // Re-render theme cards to update button text
+  renderThemeCards();
+}
+
+function initLanguageSwitcher() {
+  const langBtns = document.querySelectorAll('.lang-btn');
+  const currentLangLabel = document.getElementById('current-lang-label');
+
+  langBtns.forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const lang = btn.dataset.lang;
+      if (!lang) return;
+
+      // Update active state
+      langBtns.forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+
+      // Update label
+      if (currentLangLabel) {
+        const labelKey = lang === 'zh-CN' ? 'langZh' : 'langEn';
+        currentLangLabel.textContent = window.__dreamSkinLocale?.t(labelKey) || lang;
+      }
+
+      // Save via IPC
+      await cds.locale.set(lang);
+      applyLocale(lang);
+    });
+  });
+}
+
 // ── Initialization ─────────────────────────────────────────────────────────
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -24,12 +81,28 @@ document.addEventListener('DOMContentLoaded', async () => {
   initBackups();
   initSettings();
   initEventListeners();
+  initLanguageSwitcher();
+
+  // Apply current locale to UI
+  const currentLocale = await cds.locale.get();
+  applyLocale(currentLocale);
+
+  // Update language label
+  const langLabel = document.getElementById('current-lang-label');
+  if (langLabel && window.__dreamSkinLocale) {
+    const key = currentLocale === 'zh-CN' ? 'langZh' : 'langEn';
+    langLabel.textContent = window.__dreamSkinLocale.t(key);
+  }
 
   // Listen for events from main process
   cds.on('theme-changed', (data) => {
     activeThemeName = data.name;
     renderThemeCards();
-    showToast(data.name ? `Theme "${data.name}" applied` : 'Restored to default', 'success');
+    const msgKey = data.name ? 'toastApplied' : 'toastRestored';
+    const msg = data.name
+      ? `${window.__dreamSkinLocale?.t('toastApplied') || 'Theme applied'}: "${data.name}"`
+      : window.__dreamSkinLocale?.t('toastRestored') || 'Restored to default';
+    showToast(msg, 'success');
   });
 
   cds.on('injection-status', (status) => {
