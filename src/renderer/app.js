@@ -8,6 +8,16 @@
 // const { ipcRenderer } = require('electron'); // removed: use window.cds (contextBridge)
 const cds = window.cds;
 
+// ── Error handling ──────────────────────────────────────────────────────────
+window.addEventListener('error', (e) => {
+  console.error('[Global error]', e.message, 'at', e.filename, ':', e.lineno);
+});
+window.addEventListener('unhandledrejection', (e) => {
+  console.error('[Unhandled rejection]', e.reason);
+});
+
+console.log('[Renderer] app.js loaded, cds available:', typeof cds);
+
 // ── State ──────────────────────────────────────────────────────────────────
 
 let currentThemes = [];

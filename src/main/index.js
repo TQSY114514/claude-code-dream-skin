@@ -3,7 +3,7 @@ const path = require('path');
 const SkinManager = require('./tray');
 const { getLocale, getAvailableLocales, detectLocale } = require('./locales');
 
-// Disable default menu bar
+// Disable GPU acceleration to avoid crashes on systems with GPU issues
 app.disableHardwareAcceleration();
 
 // Prevent multiple instances

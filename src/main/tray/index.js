@@ -41,7 +41,7 @@ class SkinManager {
     return getLocale(this.locale)[key] || key;
   }
 
-  start() {
+  async start() {
     this.createWindow();
     this.createTray();
 
@@ -52,6 +52,20 @@ class SkinManager {
 
     // Initial check
     this.checkClaudeStatus();
+
+    // Show window after a short delay to ensure renderer is ready
+    setTimeout(() => {
+      if (this.mainWindow && !this.mainWindow.isDestroyed()) {
+        this.mainWindow.show();
+        this.mainWindow.focus();
+        this.mainWindow.setAlwaysOnTop(true);
+        setTimeout(() => {
+          if (this.mainWindow && !this.mainWindow.isDestroyed()) {
+            this.mainWindow.setAlwaysOnTop(false);
+          }
+        }, 1000);
+      }
+    }, 500);
   }
 
   async checkClaudeStatus() {
@@ -180,6 +194,17 @@ class SkinManager {
         contextIsolation: true,
         nodeIntegration: false,
       },
+    });
+
+    // Log renderer errors
+    this.mainWindow.webContents.on('render-process-gone', (event, details) => {
+      console.error('[Renderer crashed]', details.reason, details.exitCode);
+    });
+    this.mainWindow.webContents.on('did-fail-load', (event, code, desc) => {
+      console.error('[Load failed]', code, desc);
+    });
+    this.mainWindow.webContents.on('console-message', (event, level, message) => {
+      console.log('[Renderer]', level, message);
     });
 
     this.mainWindow.loadFile(path.join(__dirname, '..', '..', 'renderer', 'index.html'));
