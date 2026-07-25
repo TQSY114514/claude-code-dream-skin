@@ -27,6 +27,11 @@ let toastTimer = null;
 // ── i18n ────────────────────────────────────────────────────────────────────
 
 function applyLocale(locale) {
+  // Sync the renderer-side locale manager
+  if (window.__dreamSkinLocale && locale) {
+    window.__dreamSkinLocale.setLocale(locale);
+  }
+
   // Update all elements with data-i18n attribute
   document.querySelectorAll('[data-i18n]').forEach(el => {
     const key = el.getAttribute('data-i18n');
@@ -182,8 +187,20 @@ async function checkInitialStatus() {
   // Show Claude paths in settings
   const pathEl = document.getElementById('setting-claude-path');
   const dataDirEl = document.getElementById('setting-user-data-dir');
-  if (pathEl && status.path) pathEl.textContent = status.path;
+  const manualPathInput = document.getElementById('manual-claude-path');
+
+  if (status.path) {
+    if (pathEl) {
+      pathEl.textContent = status.path.source
+        ? `Found via ${status.path.source}: ${status.path.path}`
+        : status.path.path || 'Auto-detected';
+    }
+    if (manualPathInput) manualPathInput.value = status.path.path || '';
+  }
   if (dataDirEl && status.userDataDir) dataDirEl.textContent = status.userDataDir;
+
+  // Setup manual path input handlers
+  setupManualPathInput(manualPathInput);
 }
 
 function updateClaudeStatus(status) {
@@ -202,9 +219,9 @@ function updateInjectionStatus(status) {
   const dot = document.getElementById('injection-dot');
   const text = document.getElementById('injection-status-text');
 
-  if (status.error === 'restart-required') {
+  if (status.error === 'cdp-needed') {
     dot.className = 'status-dot warning';
-    text.textContent = 'Restart Claude with CDP';
+    text.textContent = 'CDP needed — restart Claude';
   } else if (status.connected) {
     dot.className = 'status-dot connected';
     text.textContent = 'Theme: Active';
@@ -511,7 +528,47 @@ async function restoreBackup(name) {
 
 window.restoreBackup = restoreBackup;
 
-// ── Settings ───────────────────────────────────────────────────────────────
+// ── Settings ────────────────────────────────────────────────────────────────
+
+function setupManualPathInput(input) {
+  if (!input) return;
+
+  const browseBtn = document.getElementById('btn-browse-claude-path');
+  const saveBtn = document.getElementById('btn-save-claude-path');
+
+  browseBtn?.addEventListener('click', async () => {
+    try {
+      const result = await cds.claude.browsePath();
+      if (!result.canceled && result.filePaths?.length > 0) {
+        input.value = result.filePaths[0];
+        await cds.claude.setPath(result.filePaths[0]);
+        showToast('Claude path saved', 'success');
+        const status = await cds.claude.status();
+        const pathEl = document.getElementById('setting-claude-path');
+        if (pathEl && status.path) {
+          pathEl.textContent = status.path.source
+            ? `Found via ${status.path.source}: ${status.path.path}`
+            : (status.path.path || 'Manual');
+        }
+      }
+    } catch (e) {
+      showToast('Failed to browse', 'error');
+    }
+  });
+
+  saveBtn?.addEventListener('click', async () => {
+    const val = input.value.trim();
+    if (!val) return;
+    try {
+      await cds.claude.setPath(val);
+      showToast('Claude path saved', 'success');
+      const pathEl = document.getElementById('setting-claude-path');
+      if (pathEl) pathEl.textContent = 'Manual: ' + val;
+    } catch (e) {
+      showToast('Failed to save path', 'error');
+    }
+  });
+}
 
 function initSettings() {
   document.getElementById('btn-launch-cdp')?.addEventListener('click', async () => {
@@ -534,12 +591,9 @@ function initSettings() {
 
   document.getElementById('btn-restore-default')?.addEventListener('click', async () => {
     try {
-      await cds.backups.create();
-      // Go to backups tab where user can restore or use the restore default flow
-      document.querySelector('[data-tab="backups"]')?.click();
-      showToast('Backup created. Use Restore to revert.', 'info');
+      await cds.themes.restoreDefault();
     } catch (e) {
-      showToast('Failed', 'error');
+      showToast(window.__dreamSkinLocale?.t('error') || 'Failed', 'error');
     }
   });
 }

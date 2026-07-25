@@ -19,7 +19,7 @@
 - **不修改官方文件**：不修改 app.asar，不破解签名
 - **CSS 变量系统**：20+ 自定义属性控制每个视觉元素
 - **多图层背景**：背景图片 + 模糊 + 视差效果
-- **14 款预设主题**：Default / Gothic Neon / Tokyo Night / Forest Mist / Sakura Dream / Midnight Glass / Aurora / Sunset Boulevard / Ocean Deep / Catppuccin Mocha / Dracula / Solarized Light / Rosé Pine / Cyberpunk
+- **17 款预设主题**：Default / Gothic Neon / Tokyo Night / Forest Mist / Sakura Dream / Midnight Glass / Aurora / Sunset Boulevard / Ocean Deep / Catppuccin Mocha / Dracula / Solarized Light / Rosé Pine / Cyberpunk / 超天酱 · INTERNET ANGEL / 超天酱 · INTERNET ANGEL · Pixel Cafe / Gothic Void Crusade
 - **自定义导入**：支持 .zip 主题包导入
 - **自动备份**：切换主题前自动备份，一键恢复
 - **系统托盘**：后台运行，右键切换主题
@@ -102,6 +102,9 @@ npm run build-win
 | Solarized Light | 精密配色亮色主题 |
 | Rosé Pine | 优雅玫瑰松针 |
 | Cyberpunk | 霓虹黄青洋红纯黑 |
+| 超天酱 · INTERNET ANGEL | 粉青紫像素风，2560x1440 JPEG |
+| 超天酱 · INTERNET ANGEL · Pixel Cafe | 同上，无损 PNG 版 |
+| Gothic Void Crusade | 暗金哥特风 |
 
 ## 主题格式
 
@@ -172,7 +175,7 @@ MIT License
 
 ## 致谢
 
-灵感来自 [Codex Dream Skin](https://github.com/Fei-Away/Codex-Dream-Skin) by Fei-Away。
+灵感来自 [Codex Dream Skin](https://github.com/Fei-Away/Codex-Dream-Skin) by Fei-Away 以及 [Codex Dream Skin (Internet Angel fork)](https://github.com/EmiyaKatuz/Codex-Dream-Skin) by EmiyaKatuz。
 
 ---
 
