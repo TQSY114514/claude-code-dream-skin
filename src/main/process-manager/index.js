@@ -626,10 +626,14 @@ class ProcessManager {
           // Direct EXE launch from WindowsApps silently drops command-line args.
           console.log('[ProcessManager] Store app detected, using COM activation');
           const psScript = path.join(__dirname, 'store-activate.ps1');
+          // Write args to temp file to avoid shell escaping issues
+          const argFile = path.join(os.tmpdir(), 'ds-launch-args.txt');
+          fs.writeFileSync(argFile, args.join(' '), 'utf-8');
           execSync(
-            `powershell -NoProfile -ExecutionPolicy Bypass -File "${psScript}" -AppId "${info.appUserModelId}" -Arguments "${args.join(' ').replace(/"/g, '\\"')}"`,
+            `powershell -NoProfile -ExecutionPolicy Bypass -File "${psScript}" -AppId "${info.appUserModelId}" -ArgumentsFile "${argFile}"`,
             { encoding: 'utf8', timeout: 60000, shell: 'cmd.exe', stdio: ['pipe', 'pipe', 'pipe'] }
           );
+          try { fs.unlinkSync(argFile); } catch (_) {}
         } else {
           // Regular install: cmd.exe /C start works fine
           const cmdLine = 'cmd.exe /C start "ClaudeCodeCDP" "' + exePath + '" ' + args.join(' ');
