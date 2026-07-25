@@ -91,32 +91,12 @@ class SkinManager {
     try {
       const port = this.processManager.debugPort;
 
-      // If Claude is already running, check if CDP is available
-      const inUse = await this.processManager.isPortInUse(port);
-      let cdpAvailable = false;
-
-      if (inUse) {
-        try {
-          const http = require('http');
-          const data = await new Promise((resolve, reject) => {
-            http.get(`http://127.0.0.1:${port}/json/version`, { timeout: 3000 }, (res) => {
-              let body = '';
-              res.on('data', d => body += d);
-              res.on('end', () => {
-                try { resolve(JSON.parse(body)); }
-                catch (e) { reject(e); }
-              });
-            }).on('error', reject);
-          });
-          cdpAvailable = data.Browser?.includes('Electron');
-        } catch (e) {
-          cdpAvailable = false;
-        }
-      }
+      // Check if CDP is available
+      const cdpAvailable = await this.processManager.isClaudeRunningWithCDP(port);
 
       if (!cdpAvailable) {
-        // Need to restart Claude with CDP enabled
-        this.injectionStatus = { connected: false, injecting: false, error: 'restart-required' };
+        // CDP not active yet — try to launch with CDP
+        this.injectionStatus = { connected: false, injecting: false, error: 'cdp-needed' };
         this.sendToWindow('injection-status', this.injectionStatus);
         return;
       }
@@ -133,8 +113,29 @@ class SkinManager {
     this.sendToWindow('injection-status', this.injectionStatus);
 
     try {
-      this.injector = new CDPInjector(port);
+      // Verify CDP endpoint against saved state (browser ID check)
+      const stateCheck = await this.processManager.verifyStateAgainstCdp(port);
+      if (!stateCheck.match && stateCheck.reason === 'browser-id-mismatch') {
+        console.warn(`[SkinManager] CDP browser ID mismatch: ${stateCheck.reason}`);
+      }
+
+      const state = this.processManager.getState();
+      const expectedBrowserId = state?.browserId || null;
+
+      const themePaths = this.themeEngine.getThemePaths();
+      const isPaused = themePaths?.pauseFile
+        ? require('fs').existsSync(themePaths.pauseFile)
+        : false;
+
+      this.injector = new CDPInjector(port, {
+        expectedBrowserId,
+        watchMode: true,
+        pauseFile: themePaths?.pauseFile || null,
+        themeDir: themePaths?.active || null,
+      });
+
       await this.injector.connect();
+      this.injectionStatus = { connected: true, injecting: false, error: null };
 
       // Get active theme
       const theme = this.themeEngine.getActiveTheme();
@@ -152,7 +153,7 @@ class SkinManager {
 
       // Pass theme CSS (with tokens) — renderer-inject.js will compile at runtime
       // The skin CSS is already in the renderer-inject.js code
-      await this.injector.setTheme(theme.css, themeMeta);
+      await this.injector.setTheme(theme.css, themeMeta, theme.backgroundBase64);
 
       this.injectionStatus = { connected: true, injecting: false, error: null };
       this.sendToWindow('injection-status', this.injectionStatus);

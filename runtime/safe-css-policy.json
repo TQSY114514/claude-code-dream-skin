@@ -1,0 +1,39 @@
+{
+  "$schema": "dream-skin-safe-css/1",
+  "description": "Allow-list of CSS properties and values permitted in theme CSS files.",
+  "rationale": "Only non-destructive visual styling is allowed. Properties that change layout, load external resources, execute scripts, or access user data are blocked.",
+  "allowedProperties": [
+    "background", "background-color", "background-image", "background-size", "background-position",
+    "background-repeat", "background-blend-mode", "background-clip", "background-origin",
+    "color", "font-family", "font-size", "font-weight", "font-style", "line-height",
+    "letter-spacing", "word-spacing", "text-indent", "text-shadow",
+    "opacity", "visibility", "filter", "backdrop-filter", "mix-blend-mode",
+    "border", "border-radius", "border-color", "border-width", "border-style",
+    "outline", "outline-color", "outline-width", "outline-offset",
+    "box-shadow", "text-shadow",
+    "cursor", "pointer-events", "user-select",
+    "transform", "transition", "animation", "will-change",
+    "display", "flex", "grid", "gap", "padding", "margin",
+    "z-index", "position", "top", "left", "right", "bottom",
+    "width", "height", "min-width", "max-width", "min-height", "max-height",
+    "overflow", "overflow-x", "overflow-y",
+    "scrollbar-width", "scrollbar-color", "scrollbar-gutter",
+    "accent-color", "caret-color",
+    "text-decoration", "text-decoration-color", "text-decoration-style",
+    "text-transform", "word-break", "white-space", "overflow-wrap",
+    "fill", "stroke", "stroke-width",
+    "list-style", "list-style-type",
+    "content",
+    "--*"
+  ],
+  "blockedAtRules": [
+    "import", "media", "charset", "namespace", "supports",
+    "keyframes", "property", "container", "layer", "scope"
+  ],
+  "blockedFunctions": [
+    "url(", "attr(", "var(", "env(", "constant(", "counter(", "counters(",
+    "expression(", "javascript:", "vbscript:"
+  ],
+  "maxFileSizeBytes": 65536,
+  "maxRuleCount": 500
+}

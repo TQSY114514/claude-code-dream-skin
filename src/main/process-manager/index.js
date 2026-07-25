@@ -1,19 +1,35 @@
-const { execSync, exec } = require('child_process');
+const { execSync, exec, spawn } = require('child_process');
 const os = require('os');
 const path = require('path');
 const fs = require('fs');
 const net = require('net');
+const http = require('http');
+const crypto = require('crypto');
+
+const STATE_VERSION = 2;
+const STATE_PATH = path.join(os.homedir(), '.claude-dream-skin', 'state.json');
+const SAFE_CSS_PROPS = new Set([
+  'background','background-color','background-image','background-size','background-position',
+  'background-repeat','background-blend-mode','background-clip','background-origin',
+  'color','font-family','font-size','font-weight','font-style','line-height','letter-spacing',
+  'text-shadow','opacity','visibility','filter','backdrop-filter','mix-blend-mode',
+  'border','border-radius','border-color','border-width','box-shadow',
+  'outline','cursor','pointer-events','user-select',
+  'transform','transition','animation','will-change',
+  'display','flex','grid','gap','padding','margin',
+  'z-index','position','top','left','right','bottom',
+  'width','height','min-width','max-width','min-height','max-height',
+  'overflow','overflow-x','overflow-y',
+  'scrollbar-width','scrollbar-color',
+  'accent-color','caret-color',
+  'text-decoration','text-transform','word-break','white-space',
+  'fill','stroke',
+]);
 
 /**
- * Detects Claude Desktop installation path and manages the process lifecycle.
- *
- * Uses multiple strategies to find Claude Desktop:
- *   1. Environment variable (CLAUDE_DESKTOP_PATH)
- *   2. Running process via WMIC
- *   3. Windows Registry uninstall entries
- *   4. Start Menu .lnk shortcut
- *   5. PowerShell Get-StartApps
- *   6. WindowsApps directory scan across drives
+ * Detects Claude Desktop installation using multiple strategies,
+ * ordered by reliability and speed. Inspired by Codex Dream Skin's
+ * Store-package-first approach.
  */
 class ProcessManager {
   constructor() {
@@ -21,10 +37,254 @@ class ProcessManager {
     this.claudePath = null;
     this.claudePid = null;
     this.userDataDir = null;
+    this._state = null;
+    this._loadState();
   }
 
   /**
-   * Read target path from a Windows .lnk shortcut.
+   * Extract browser ID from CDP version response.
+   * Codex Dream Skin pattern: verify port listener belongs to the correct browser.
+   */
+  _extractBrowserId(version) {
+    if (!version || !version.Browser) return null;
+    const match = version.Browser.match(/DevTools\s+(.+?)(?:\s+\d|$)/);
+    if (match) return match[1].trim();
+    if (version.webSocketDebuggerUrl) {
+      try {
+        const url = new URL(version.webSocketDebuggerUrl);
+        const m = url.pathname.match(/^\/devtools\/browser\/(.+)$/);
+        if (m) return m[1];
+      } catch (_) {}
+    }
+    return null;
+  }
+
+  // ── State Management ──────────────────────────────────────────────────────
+
+  _loadState() {
+    try {
+      if (fs.existsSync(STATE_PATH)) {
+        this._state = JSON.parse(fs.readFileSync(STATE_PATH, 'utf8'));
+      }
+    } catch (e) {
+      this._state = null;
+    }
+  }
+
+  _saveState(state) {
+    try {
+      const dir = path.dirname(STATE_PATH);
+      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+      state.schemaVersion = STATE_VERSION;
+      state.updatedAt = new Date().toISOString();
+      fs.writeFileSync(STATE_PATH, JSON.stringify(state, null, 2), 'utf8');
+      this._state = state;
+    } catch (e) {}
+  }
+
+  /**
+   * Verify that the current state matches a CDP endpoint.
+   * Checks browser ID to prevent CDP hijacking by a different process.
+   */
+  async verifyStateAgainstCdp(port) {
+    if (!this._state) return { match: false, reason: 'no-state' };
+    try {
+      const data = await new Promise((resolve, reject) => {
+        http.get(`http://127.0.0.1:${port}/json/version`, { timeout: 3000 }, res => {
+          let body = '';
+          res.on('data', d => body += d);
+          res.on('end', () => {
+            try { resolve(JSON.parse(body)); }
+            catch (e) { reject(e); }
+          });
+        }).on('error', reject);
+      });
+
+      const browserId = this._extractBrowserId(data);
+
+      // Check port matches
+      if (this._state.port && this._state.port !== port) {
+        return { match: false, reason: 'port-mismatch', expectedPort: this._state.port };
+      }
+
+      // Check browser ID if we have one saved
+      if (browserId && this._state.browserId && browserId !== this._state.browserId) {
+        return { match: false, reason: 'browser-id-mismatch', expected: this._state.browserId, actual: browserId };
+      }
+
+      return { match: true, browserId, version: data.Browser };
+    } catch (e) {
+      return { match: false, reason: e.message };
+    }
+  }
+
+  getState() {
+    return this._state;
+  }
+
+  // ── Persisted Settings ────────────────────────────────────────────────────
+
+  _getStore() {
+    try {
+      return require('electron-store');
+    } catch (e) {
+      return null;
+    }
+  }
+
+  _storeGet(key) {
+    try {
+      const Store = this._getStore();
+      if (!Store) return null;
+      const s = new Store({ name: 'settings' });
+      const v = s.get(key);
+      return v || null;
+    } catch (e) { return null; }
+  }
+
+  _storeSet(key, val) {
+    try {
+      const Store = this._getStore();
+      if (!Store) return;
+      const s = new Store({ name: 'settings' });
+      s.set(key, val);
+    } catch (e) {}
+  }
+
+  getManualPath() {
+    return this._storeGet('claude-path');
+  }
+
+  saveManualPath(exePath) {
+    this._storeSet('claude-path', exePath);
+  }
+
+  getSavedUserDataDir() {
+    return this._storeGet('user-data-dir');
+  }
+
+  saveUserDataDir(dir) {
+    this._storeSet('user-data-dir', dir);
+  }
+
+  // ── Path Safety ───────────────────────────────────────────────────────────
+
+  /**
+   * Validate that a path doesn't escape its root via junctions/symlinks.
+   * Mirrors Codex Dream Skin's Assert-DreamSkinNoReparseComponents.
+   */
+  _assertSafePath(filePath, rootDir) {
+    const fullPath = path.resolve(filePath);
+    const fullRoot = path.resolve(rootDir);
+    let current = fullPath;
+
+    while (true) {
+      if (!fs.existsSync(current)) break;
+      try {
+        const stat = fs.lstatSync(current);
+        if (stat.isSymbolicLink()) {
+          throw new Error(`Path contains symbolic link: ${current}`);
+        }
+        if ((stat.mode & 0o120000) !== 0 && stat.nlink === 0) {
+          // Junction detection on Windows (reparse point)
+          throw new Error(`Path contains junction/reparse point: ${current}`);
+        }
+      } catch (e) {
+        if (e.message.includes('symbolic link') || e.message.includes('junction')) {
+          throw e;
+        }
+      }
+      if (path.resolve(current) === fullRoot) break;
+      const parent = path.dirname(current);
+      if (parent === current) break;
+      current = parent;
+    }
+  }
+
+  _pathWithin(filePath, rootDir) {
+    const fullPath = path.resolve(filePath);
+    const fullRoot = path.resolve(rootDir).replace(/[\\/]$/, '');
+    if (fullPath === fullRoot) return true;
+    return fullPath.startsWith(fullRoot + path.sep);
+  }
+
+  // ── Store Package Detection (Codex-style) ─────────────────────────────────
+
+  /**
+   * Try to find Claude via PowerShell Get-AppxPackage.
+   * This is Codex Dream Skin's primary detection method — it queries
+   * the Windows Store package database which is more reliable than
+   * filesystem scanning.
+   */
+  _detectViaStorePackage() {
+    try {
+      const output = execSync(
+        'powershell -NoProfile -Command "Get-AppxPackage -Name *Claude* -ErrorAction Stop 2>$null | Select-Object Name,InstallLocation,PackageFullName,PackageFamilyName,SignatureKind | ConvertTo-Json -Depth 3"',
+        { encoding: 'utf8', timeout: 10000, shell: 'cmd.exe', stdio: ['pipe', 'pipe', 'pipe'] }
+      );
+      const packages = JSON.parse(output);
+      const list = Array.isArray(packages) ? packages : [packages].filter(Boolean);
+
+      for (const pkg of list) {
+        if (!pkg.InstallLocation) continue;
+        const installDir = pkg.InstallLocation;
+        const candidateExe = path.join(installDir, 'app', 'Claude.exe');
+
+        if (fs.existsSync(candidateExe)) {
+          return {
+            path: path.resolve(candidateExe),
+            source: 'store-package',
+            packageFullName: pkg.PackageFullName || null,
+            packageFamilyName: pkg.PackageFamilyName || null,
+            signatureKind: pkg.SignatureKind || null,
+            installLocation: installDir,
+            appUserModelId: pkg.PackageFamilyName ? `${pkg.PackageFamilyName}!App` : null,
+          };
+        }
+      }
+    } catch (e) {
+      // Get-AppxPackage returned no results or failed
+    }
+    return null;
+  }
+
+  // ── Process Detection ─────────────────────────────────────────────────────
+
+  /**
+   * Detect Claude Desktop via running process (WMIC or PowerShell).
+   * Fastest method when Claude is already open.
+   */
+  _detectViaRunningProcess() {
+    // Try PowerShell first (faster, no deprecated WMIC warnings)
+    try {
+      const output = execSync(
+        'powershell -NoProfile -Command "Get-Process -Name Claude -ErrorAction Stop | Select-Object -ExpandProperty Path"',
+        { encoding: 'utf8', timeout: 5000, shell: 'cmd.exe', stdio: ['pipe', 'pipe', 'pipe'] }
+      );
+      const exePath = output.trim();
+      if (exePath && fs.existsSync(exePath)) {
+        return { path: path.resolve(exePath), source: 'running-process' };
+      }
+    } catch (e) {}
+
+    // Fallback: WMIC
+    try {
+      const output = execSync(
+        "wmic process where \"name='Claude.exe'\" get ExecutablePath /format:list",
+        { encoding: 'utf8', timeout: 5000 }
+      );
+      const match = output.match(/ExecutablePath\s*=\s*(.+)/);
+      if (match && fs.existsSync(match[1].trim())) {
+        return { path: path.resolve(match[1].trim()), source: 'running-process' };
+      }
+    } catch (e) {}
+
+    return null;
+  }
+
+  /**
+   * Detect Claude Desktop via .lnk shortcut parsing.
+   * Uses JScript via cscript (same technique Codex uses in other contexts).
    */
   _readLnkTarget(lnkPath) {
     try {
@@ -33,103 +293,37 @@ class ProcessManager {
       fs.writeFileSync(tmpJs,
         "var shell = new ActiveXObject('WScript.Shell');\n" +
         "var lnk = shell.CreateShortcut('" + safePath + "');\n" +
-        "WScript.Echo(lnk.TargetPath);\n"
+        "WScript.Echo(lnk.TargetPath);\n",
+        'utf8'
       );
       try {
         const output = execSync('cscript //Nologo //E:jscript ' + tmpJs, {
           encoding: 'utf8', timeout: 3000, shell: 'cmd.exe', stdio: ['pipe', 'pipe', 'ignore']
         });
         const target = output.trim();
-        if (target && fs.existsSync(target)) return target;
+        if (target && fs.existsSync(target)) return path.resolve(target);
       } catch (e) {}
       try { fs.unlinkSync(tmpJs); } catch (e) {}
     } catch (e) {}
     return null;
   }
 
+  _detectViaStartMenu() {
+    const lnkPath = path.join(os.homedir(), 'AppData', 'Roaming',
+      'Microsoft', 'Windows', 'Start Menu', 'Programs', 'Claude.lnk');
+    if (fs.existsSync(lnkPath)) {
+      const target = this._readLnkTarget(lnkPath);
+      if (target) return { path: target, source: 'start-menu' };
+    }
+    return null;
+  }
+
   /**
-   * Find Claude Desktop installation path.
-   * Tries multiple strategies in order of speed.
+   * Scan WindowsApps directories across drives.
+   * Codex doesn't use this (they use Store packages), but it's a
+   * useful fallback for non-Store installs.
    */
-  findClaudePath() {
-    // Strategy 1: Environment variable override
-    const customPath = process.env.CLAUDE_DESKTOP_PATH;
-    if (customPath && fs.existsSync(customPath)) {
-      return { path: customPath, source: 'custom' };
-    }
-
-    // Strategy 2: WMIC - check running process (fastest if Claude is running)
-    try {
-      const output = execSync(
-        'wmic process where "name=\'Claude.exe\'" get ExecutablePath /format:list',
-        { encoding: 'utf8', timeout: 3000 }
-      );
-      const match = output.match(/ExecutablePath\s*=\s*(.+)/);
-      if (match && fs.existsSync(match[1].trim())) {
-        return { path: match[1].trim(), source: 'running-process' };
-      }
-    } catch (e) {
-      // Not running or WMIC not available
-    }
-
-    // Strategy 3: Windows Registry - uninstall entries
-    try {
-      const output = execSync(
-        'reg query "HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall" /s /f "Claude" /reg:64',
-        { encoding: 'utf8', timeout: 5000, shell: 'cmd.exe' }
-      );
-      const lines = output.split('\n');
-      for (let i = 0; i < lines.length; i++) {
-        const trimmed = lines[i].trim();
-        if (/^(InstallLocation|DisplayIcon)/.test(trimmed)) {
-          const parts = trimmed.split(/\s{2,}/);
-          const val = parts[1];
-          if (!val) continue;
-          let candidate = val;
-          if (!candidate.endsWith('.exe')) {
-            candidate = path.join(candidate, 'app', 'Claude.exe');
-          }
-          if (fs.existsSync(candidate)) {
-            return { path: candidate, source: 'registry' };
-          }
-        }
-      }
-    } catch (e) {
-      // Registry not available
-    }
-
-    // Strategy 4: Start Menu shortcut (works even if app is not running)
-    try {
-      const lnkPath = path.join(os.homedir(), 'AppData', 'Roaming',
-        'Microsoft', 'Windows', 'Start Menu', 'Programs', 'Claude.lnk');
-      if (fs.existsSync(lnkPath)) {
-        const target = this._readLnkTarget(lnkPath);
-        if (target && fs.existsSync(target)) {
-          return { path: target, source: 'shortcut' };
-        }
-      }
-    } catch (e) {
-      // Shortcut parsing failed
-    }
-
-    // Strategy 5: PowerShell Get-StartApps
-    try {
-      const output = execSync(
-        'powershell -NoProfile -Command "Get-StartApps -Name *Claude* -ErrorAction SilentlyContinue | Select-Object -ExpandProperty InstallLocation"',
-        { encoding: 'utf8', timeout: 8000, shell: 'cmd.exe' }
-      );
-      const loc = output.trim();
-      if (loc && fs.existsSync(loc)) {
-        const exe = path.join(loc, 'app', 'Claude.exe');
-        if (fs.existsSync(exe)) {
-          return { path: exe, source: 'shell-apps' };
-        }
-      }
-    } catch (e) {
-      // PowerShell not available
-    }
-
-    // Strategy 6: Scan WindowsApps across all drives
+  _detectViaWindowsApps() {
     const drives = ['C:', 'D:', 'E:', 'F:', 'G:'];
     for (const drive of drives) {
       const wa = path.join(drive, 'WindowsApps');
@@ -141,54 +335,166 @@ class ProcessManager {
             const exe = path.join(wa, d, 'app', 'Claude.exe');
             if (fs.existsSync(exe)) {
               return {
-                path: exe,
+                path: path.resolve(exe),
                 source: 'windows-apps',
-                version: d.replace('Claude_', '').replace(/_x64__.*$/, '')
+                version: d.replace('Claude_', '').replace(/_x64__.*$/, ''),
               };
             }
           }
         }
-      } catch (e) {
-        // Permission denied on this drive
-      }
+      } catch (e) {}
     }
+    return null;
+  }
+
+  // ── Main Detection ────────────────────────────────────────────────────────
+
+  findClaudePath() {
+    // Strategy 0: Saved/configured path (most reliable)
+    const saved = this.getManualPath();
+    if (saved && fs.existsSync(saved)) {
+      return { path: path.resolve(saved), source: 'saved' };
+    }
+
+    // Strategy 1: Environment variable override
+    const customPath = process.env.CLAUDE_DESKTOP_PATH;
+    if (customPath && fs.existsSync(customPath)) {
+      return { path: path.resolve(customPath), source: 'env' };
+    }
+
+    // Strategy 2: Store package (Codex's primary method — most reliable)
+    const storeResult = this._detectViaStorePackage();
+    if (storeResult) return storeResult;
+
+    // Strategy 3: Running process (fast)
+    const runningResult = this._detectViaRunningProcess();
+    if (runningResult) return runningResult;
+
+    // Strategy 4: Start Menu shortcut
+    const shortcutResult = this._detectViaStartMenu();
+    if (shortcutResult) return shortcutResult;
+
+    // Strategy 5: WindowsApps directory scan
+    const waResult = this._detectViaWindowsApps();
+    if (waResult) return waResult;
 
     return null;
   }
 
   /**
-   * Find Claude Desktop user data directory.
+   * Find Claude Desktop's user data directory.
    */
   findUserDataDir() {
+    const saved = this.getSavedUserDataDir();
+    if (saved && fs.existsSync(saved)) return path.resolve(saved);
+
+    // Check from running process command line
+    try {
+      const output = execSync(
+        "wmic process where \"name='Claude.exe'\" get CommandLine /format:list",
+        { encoding: 'utf8', timeout: 5000 }
+      );
+      const match = output.match(/--user-data-dir="([^"]+)"/);
+      if (match && fs.existsSync(match[1])) return path.resolve(match[1]);
+    } catch (e) {}
+
+    // Common paths
     const candidates = [
       path.join(os.homedir(), 'AppData', 'Local', 'Claude-3p'),
       path.join('D:', 'Claude-3p'),
       path.join(os.homedir(), 'AppData', 'Local', 'Claude'),
     ];
     for (const dir of candidates) {
-      if (fs.existsSync(dir)) return dir;
-    }
-
-    // Try WMIC to extract from running process command line
-    try {
-      const output = execSync(
-        'wmic process where "name=\'Claude.exe\'" get CommandLine /format:list',
-        { encoding: 'utf8', timeout: 5000 }
-      );
-      const match = output.match(/--user-data-dir="([^"]+)"/);
-      if (match && fs.existsSync(match[1])) {
-        return match[1];
-      }
-    } catch (e) {
-      // Ignore
+      if (fs.existsSync(dir)) return path.resolve(dir);
     }
 
     return null;
   }
 
+  // ── CDP Communication (Raw WebSocket, no dependency) ──────────────────────
+
   /**
-   * Check if a port is in use.
+   * Validate a CDP WebSocket URL — ensures it's a loopback endpoint
+   * matching the expected browser identity. Inspired by Codex's
+   * validatedDebuggerUrl().
    */
+  _validateCdpUrl(url, port) {
+    const parsed = new URL(url);
+    const LOOPBACK = new Set(['127.0.0.1', 'localhost', '[::1]', '::1']);
+    const pathOk = /^\/devtools\/(?:page|browser)\/[A-Za-z0-9._-]{1,200}$/.test(parsed.pathname);
+
+    if (parsed.protocol !== 'ws:' ||
+        !LOOPBACK.has(parsed.hostname) ||
+        Number(parsed.port) !== port ||
+        parsed.username || parsed.password ||
+        parsed.search || parsed.hash ||
+        !pathOk) {
+      throw new Error('Rejected CDP WebSocket URL outside allowed loopback shape');
+    }
+    return parsed.href;
+  }
+
+  /**
+   * Check if Claude is already running with CDP on the given port.
+   */
+  isClaudeRunningWithCDP(port) {
+    return new Promise(resolve => {
+      this.isPortInUse(port).then(inUse => {
+        if (!inUse) return resolve(false);
+
+        const options = {
+          hostname: '127.0.0.1',
+          port: port,
+          path: '/json/version',
+          timeout: 3000,
+        };
+
+        http.get(options, res => {
+          let body = '';
+          res.on('data', d => body += d);
+          res.on('end', () => {
+            try {
+              const data = JSON.parse(body);
+              const isElectron = data.Browser && data.Browser.includes('Electron');
+              resolve(!!isElectron);
+            } catch (e) {
+              resolve(false);
+            }
+          });
+        }).on('error', () => resolve(false));
+      });
+    });
+  }
+
+  /**
+   * Wait for CDP endpoint to become available.
+   */
+  async waitForCDP(port, timeout = 30000) {
+    const deadline = Date.now() + timeout;
+    while (Date.now() < deadline) {
+      try {
+        const data = await new Promise((resolve, reject) => {
+          http.get(`http://127.0.0.1:${port}/json/version`, { timeout: 3000 }, res => {
+            let body = '';
+            res.on('data', d => body += d);
+            res.on('end', () => {
+              try { resolve(JSON.parse(body)); }
+              catch (e) { reject(e); }
+            });
+          }).on('error', reject);
+        });
+
+        if (data.Browser && data.Browser.includes('Electron')) {
+          return data;
+        }
+      } catch (e) {}
+      await new Promise(r => setTimeout(r, 500));
+    }
+    throw new Error(`CDP endpoint not available on port ${port} within ${timeout}ms`);
+  }
+
+  // ── Process Lifecycle ─────────────────────────────────────────────────────
+
   isPortInUse(port) {
     return new Promise(resolve => {
       const server = net.createServer();
@@ -205,78 +511,51 @@ class ProcessManager {
     });
   }
 
-  /**
-   * Check if Claude Desktop is currently running.
-   */
   async isRunning() {
     try {
-      const output = execSync('tasklist /FI "IMAGENAME eq Claude.exe" /FO CSV /NH', {
-        encoding: 'utf8',
-        timeout: 3000
-      });
-      return output.includes('Claude.exe');
+      const output = execSync(
+        'powershell -NoProfile -Command "Get-Process -Name Claude -ErrorAction SilentlyContinue | Measure-Object | Select-Object -ExpandProperty Count"',
+        { encoding: 'utf8', timeout: 5000, shell: 'cmd.exe', stdio: ['pipe', 'pipe', 'pipe'] }
+      );
+      return parseInt(output.trim()) > 0;
     } catch (e) {
       return false;
     }
   }
 
-  /**
-   * Find the PID of the main Claude Desktop process.
-   */
-  findClaudePid() {
-    try {
-      const output = execSync(
-        'wmic process where "name=\'Claude.exe\'" get ProcessId,CommandLine /format:csv',
-        { encoding: 'utf8', timeout: 5000 }
-      );
-      const lines = output.trim().split('\n').slice(1);
-      for (const line of lines) {
-        const parts = line.trim().split(',');
-        if (parts.length >= 3 && parts[2]) {
-          const cmdline = parts.slice(2).join(',').trim();
-          if (!cmdline.includes('--type=') || cmdline.includes('--type=renderer')) {
-            const pid = parseInt(parts[1]);
-            if (!isNaN(pid)) return pid;
-          }
-        }
-      }
-      const firstMatch = lines[0]?.trim().split(',');
-      if (firstMatch && firstMatch[1]) {
-        return parseInt(firstMatch[1]);
-      }
-    } catch (e) {}
-    return null;
-  }
-
-  /**
-   * Kill Claude Desktop by process name.
-   */
   killClaude() {
     try {
+      // Try graceful first
       execSync('taskkill /F /IM Claude.exe 2>nul', { timeout: 5000, stdio: 'pipe' });
-      return new Promise(resolve => {
-        let attempts = 0;
-        const check = () => {
-          this.isRunning().then(running => {
-            if (!running || attempts > 20) resolve(!running);
-            else { attempts++; setTimeout(check, 300); }
-          });
-        };
-        check();
-      });
     } catch (e) {
-      return Promise.resolve(true);
+      // Already not running or access denied
     }
+    return new Promise(resolve => {
+      let attempts = 0;
+      const check = async () => {
+        const running = await this.isRunning();
+        if (!running || attempts > 30) resolve(!running);
+        else { attempts++; setTimeout(check, 300); }
+      };
+      check();
+    });
   }
 
-  /**
-   * Launch Claude Desktop with --remote-debugging-port.
-   */
-  launchWithCDP(debugPort) {
-    return new Promise((resolve, reject) => {
-      const port = debugPort || this.debugPort;
-      const info = this.findClaudePath();
+  // ── Launch with CDP ───────────────────────────────────────────────────────
 
+  launchWithCDP(debugPort) {
+    return new Promise(async (resolve, reject) => {
+      const port = debugPort || this.debugPort;
+
+      // Check if CDP is already active
+      const cdpActive = await this.isClaudeRunningWithCDP(port);
+      if (cdpActive) {
+        console.log('[ProcessManager] Claude already running with CDP on port ' + port);
+        return resolve({ launcher: 'existing', port });
+      }
+
+      // Find Claude executable
+      const info = this.findClaudePath();
       if (!info) {
         return reject(new Error('Claude Desktop not found. Please install it first.'));
       }
@@ -284,71 +563,73 @@ class ProcessManager {
       const exePath = info.path;
       const dataDir = this.findUserDataDir();
 
-      this.isPortInUse(port).then(inUse => {
-        if (inUse) {
-          console.log(`[ProcessManager] CDP port ${port} already in use, connecting to existing instance`);
-          return resolve({ launcher: 'existing', port });
-        }
+      // Save paths for future use
+      this.saveManualPath(exePath);
+      if (dataDir) this.saveUserDataDir(dataDir);
 
-        console.log('[ProcessManager] Stopping existing Claude Desktop...');
-        this.killClaude().then(() => {
-          setTimeout(() => {
-            try {
-              const args = ['--remote-debugging-port=' + port];
-              if (dataDir) {
-                args.push('--user-data-dir="' + dataDir + '"');
-              }
-
-              // Build a single command string for exec()
-              const cmdLine = 'cmd.exe /C start "ClaudeCodeCDP" "' + exePath + '" ' + args.join(' ');
-
-              exec(cmdLine, { windowsHide: true }, (error) => {
-                if (error) {
-                  console.error('[ProcessManager] Launch error:', error);
-                  return reject(error);
-                }
-                console.log(`[ProcessManager] Launched Claude with CDP on port ${port}`);
-                resolve({ launcher: 'new', port, exePath });
-              });
-            } catch (e) {
-              reject(e);
-            }
-          }, 2000);
-        });
+      // Update state (schema v2)
+      this._saveState({
+        schemaVersion: 2,
+        port,
+        browserId: null, // filled after CDP verification
+        claudeExe: exePath,
+        userDataDir: dataDir,
+        detectSource: info.source,
+        packageFullName: info.packageFullName || null,
+        packageFamilyName: info.packageFamilyName || null,
+        signatureKind: info.signatureKind || null,
       });
-    });
-  }
 
-  /**
-   * Wait for the CDP endpoint to become available.
-   */
-  async waitForCDP(port, timeout = 15000) {
-    const start = Date.now();
-    const http = require('http');
+      console.log('[ProcessManager] Launching Claude with CDP on port ' + port);
+      console.log('[ProcessManager] Claude exe: ' + exePath);
+      console.log('[ProcessManager] Detect source: ' + info.source);
+      if (dataDir) console.log('[ProcessManager] User data dir: ' + dataDir);
 
-    while (Date.now() - start < timeout) {
+      // Kill existing and relaunch
       try {
-        const data = await new Promise((resolve, reject) => {
-          http.get('http://127.0.0.1:' + port + '/json/version', { timeout: 2000 }, (res) => {
-            let body = '';
-            res.on('data', d => body += d);
-            res.on('end', () => {
-              try { resolve(JSON.parse(body)); }
-              catch (e) { reject(e); }
-            });
-          }).on('error', reject);
-        });
-
-        if (data.Browser && data.Browser.includes('Electron')) {
-          return data;
-        }
+        await this.killClaude();
       } catch (e) {
-        // Not ready yet
+        console.warn('[ProcessManager] Kill warning:', e.message);
       }
-      await new Promise(r => setTimeout(r, 500));
-    }
 
-    throw new Error('CDP endpoint not available on port ' + port + ' within ' + timeout + 'ms');
+      // Wait for processes to fully exit
+      await new Promise(r => setTimeout(r, 2000));
+
+      try {
+        const args = ['--remote-debugging-port=' + port];
+        if (dataDir) {
+          args.push('--user-data-dir=' + dataDir);
+        }
+
+        // For Store apps, use PowerShell Start-Process with AppUserModelId
+        // This is Codex Dream Skin's pattern — it ensures args are passed to the Store app
+        if (info.appUserModelId) {
+          console.log('[ProcessManager] Launching Store app via PowerShell AUMID...');
+          const argStr = args.map(a => `"${a}"`).join(' ');
+          execSync(
+            `powershell -NoProfile -Command "Start-Process -AppUserModelId '${info.appUserModelId}' -ArgumentList ${argStr}"`,
+            { encoding: 'utf8', timeout: 10000, shell: 'cmd.exe', stdio: ['pipe', 'pipe', 'pipe'] }
+          );
+        } else {
+          // Regular executable launch
+          const cmdLine = 'cmd.exe /C start "ClaudeCodeCDP" "' + exePath + '" ' + args.join(' ');
+          exec(cmdLine, { windowsHide: true }, (error) => {
+            if (error) {
+              console.error('[ProcessManager] Launch error:', error);
+              return reject(error);
+            }
+            console.log('[ProcessManager] Launched Claude with CDP on port ' + port);
+            resolve({ launcher: 'new', port, exePath });
+          });
+          return;
+        }
+
+        console.log('[ProcessManager] Launched Store app with CDP on port ' + port);
+        resolve({ launcher: 'store', port, exePath });
+      } catch (e) {
+        reject(e);
+      }
+    });
   }
 }
 

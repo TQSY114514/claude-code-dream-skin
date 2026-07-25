@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "id": "preset-internet-angel-default",
+  "name": "超天酱 · INTERNET ANGEL",
+  "author": "EmiyaKatuz",
+  "version": "1.3.5",
+  "description": "超天酱 INTERNET ANGEL 默认主题 · 2560x1440 JPEG",
+  "brandSubtitle": "CODEX // INTERNET ANGEL ♥",
+  "tagline": "今天也要做最可爱的互联网天使。",
+  "projectPrefix": "PROJECT CHANNEL // ",
+  "projectLabel": "✦ 选择项目",
+  "statusText": "INTERNET ANGEL // STREAM ONLINE",
+  "quote": "BLESS YOUR CODE ♥",
+  "appearance": "auto",
+  "art": {
+    "focusX": 0.72,
+    "focusY": 0.42,
+    "safeArea": "left",
+    "taskMode": "ambient"
+  },
+  "colors": {
+    "background": "#0f0e18",
+    "panel": "#1a1525",
+    "panelAlt": "#241e32",
+    "accent": "#ff45c8",
+    "accentAlt": "#ff7ed4",
+    "secondary": "#45c6ff",
+    "highlight": "#ff6b9d",
+    "text": "#f0e6f6",
+    "muted": "#9b8fb0",
+    "line": "rgba(255, 69, 200, 0.2)"
+  }
+}

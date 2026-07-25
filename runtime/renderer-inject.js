@@ -1,470 +1,854 @@
 /**
- * Dream Skin — Renderer Injector
+ * Dream Skin — Renderer Injector (Claude Desktop)
  *
- * Runs inside Claude Desktop's renderer process via CDP Runtime.evaluate.
- * Performs dynamic features that can't be done in static CSS:
- *   - Image analysis (color binning, focus point, brightness)
- *   - Adaptive palette generation from image dominant color
- *   - Shell detection (dark/light Electron theme)
- *   - Token resolution with cache (fallback for un-compiled CSS)
- *   - MutationObserver for shell changes
+ * IIFE running in the renderer via CDP Runtime.evaluate.
+ * Receives pre-assembled data as parameters — no globals needed.
  *
- * The PRIMARY styling is injected via CDP CSS.addStyleSheet (compiled CSS).
- * This script only sets CSS custom properties and data attributes.
+ * Handles: CSS installation, image analysis, adaptive palette, dynamic effects,
+ *          shell change watching, and cleanup.
  */
 
-(function () {
+((cssText, artDataUrl, themeConfig) => {
   'use strict';
 
-  // ── Selector contract (mirrors tools/selectors.json) ──────────────────────
-  const SELECTORS = {
-    shellMain:       'main, [role="main"], [class*="content"]',
-    leftPanel:       'aside, nav, [class*="sidebar"], [class*="Sidebar"], [class*="nav-"], [class*="Navigation"]',
-    headerTint:      'header, [class*="header"], [class*="Header"], [class*="top-bar"], [class*="TopBar"]',
-    composerChrome:  '[contenteditable="true"], [role="textbox"], [class*="composer"], [class*="Composer"], [class*="input"], textarea',
-    homeRoute:       '[class*="home"], [class*="Home"], [class*="welcome"], [class*="Welcome"]',
-    homeSuggestions: '[class*="suggestion"], [class*="Suggestion"], [class*="starter"], [class*="Starter"]',
-    markdown:        '[class*="markdown"], [class*="Markdown"], .markdown-body, [class*="prose"], article',
-    message:         '[class*="message"], [class*="Message"], [class*="chat-message"], [class*="ChatMessage"]',
-    codeBlock:       'pre, code, [class*="code"], [class*="Code"], pre[class*="language-']",
-    sendButton:      '[class*="send"], [class*="Submit"], [class*="submit"], button[type="submit"]',
-  };
+  // ── Constants ──────────────────────────────────────────────────────────────
 
-  // ── Feature detection ──────────────────────────────────────────────────────
-  let hasCSSSupports = false;
-  try { hasCSSSupports = CSS.supports && CSS.supports('selector(:has(*))'); } catch (_) {}
+  const K = Object.freeze({
+    STATE:      '__CODEX_DREAM_SKIN_STATE__',
+    DISABLED:   '__CODEX_DREAM_SKIN_DISABLED__',
+    STYLE_REG:  '__CODEX_DREAM_SKIN_STYLE_SHEETS__',
+    ANALYSIS:   '__CODEX_DREAM_SKIN_ANALYSIS_CACHE__',
+    STYLE_ID:   'codex-dream-skin-style',
+  });
 
-  // ── Image analysis ────────────────────────────────────────────────────────
-  const ANALYSIS_CACHE = new Map();
-  const HUE_BINS = 24;
+  const ROOT_ATTRS = [
+    'data-dream-skin','data-dream-shell',
+    'data-dream-art-wide','data-dream-art-safe','data-dream-task-mode',
+    'data-dream-art-safe-area','data-dream-art-task-mode','data-dream-art-aspect',
+    'data-dream-art-ready',
+  ];
 
-  async function analyzeImage(base64DataUrl) {
-    if (ANALYSIS_CACHE.has(base64DataUrl)) return ANALYSIS_CACHE.get(base64DataUrl);
+  const THEME_VARS = [
+    '--ds-bg','--ds-panel','--ds-panel-2','--ds-green','--ds-lime',
+    '--ds-cyan','--ds-purple','--ds-text','--ds-muted','--ds-line',
+    '--ds-bg-rgb','--ds-panel-rgb','--ds-panel-2-rgb',
+    '--ds-accent-rgb','--ds-accent-alt-rgb','--ds-secondary-rgb','--ds-highlight-rgb',
+    '--ds-text-rgb','--ds-muted-rgb','--ds-line-rgb',
+    '--ds-accent','--ds-accent-soft','--ds-secondary','--ds-highlight','--ds-on-accent',
+    '--dream-art-focus-x','--dream-art-focus-y','--dream-art-position',
+    '--dream-skin-focus-x','--dream-skin-focus-y','--dream-skin-art-position',
+    '--dream-skin-name','--dream-skin-tagline','--dream-skin-project-prefix',
+    '--dream-skin-project-label','--dream-skin-brand-subtitle',
+    '--dream-skin-status','--dream-skin-quote','--dream-skin-art',
+  ];
 
-    const result = { dominantHue: 0, accentRgb: [130, 152, 163], brightness: 0.45, focusX: 50, focusY: 50, saturation: 0.5, side: 'left' };
+  // ── Config ─────────────────────────────────────────────────────────────────
 
-    try {
-      const img = new Image();
-      img.crossOrigin = 'anonymous';
-      const loaded = await new Promise((resolve, reject) => {
-        img.onload = () => resolve(img);
-        img.onerror = () => reject(new Error('Image load failed'));
-        img.src = base64DataUrl;
-      });
+  const THEME  = themeConfig && typeof themeConfig === 'object' ? themeConfig : {};
+  const ART    = THEME.art  && typeof THEME.art  === 'object' ? THEME.art : {};
+  const ART_KEY = typeof THEME.artKey === 'string' ? THEME.artKey : null;
 
-      const w = loaded.naturalWidth || loaded.width;
-      const h = loaded.naturalHeight || loaded.height;
-      const canvas = document.createElement('canvas');
-      const MAX = 320;
-      const scale = Math.min(1, MAX / Math.max(w, h));
-      canvas.width = Math.floor(w * scale);
-      canvas.height = Math.floor(h * scale);
-      const ctx = canvas.getContext('2d');
-      ctx.drawImage(loaded, 0, 0, canvas.width, canvas.height);
-      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-      const data = imageData.data;
-      const len = data.length;
+  // ── Helpers ────────────────────────────────────────────────────────────────
 
-      const hueCounts = new Array(HUE_BINS).fill(0);
-      let totalBright = 0, brightCount = 0;
-      let leftBright = 0, rightBright = 0;
-
-      for (let i = 0; i < len; i += 4) {
-        const r = data[i], g = data[i + 1], b = data[i + 2];
-        const mx = Math.max(r, g, b), mn = Math.min(r, g, b);
-        const l = (mx + mn) / 2;
-        let h = 0, s = 0;
-        if (mx !== mn) {
-          const d = mx - mn;
-          s = l > 128 ? d / (510 - mx - mn) : d / (mx + mn);
-          if (mx === r) h = ((g - b) / d + (g < b ? 6 : 0)) * 60;
-          else if (mx === g) h = ((b - r) / d + 2) * 60;
-          else h = ((r - g) / d + 4) * 60;
-        }
-        totalBright += l / 255;
-        brightCount++;
-        hueCounts[Math.round(h / (360 / HUE_BINS)) % HUE_BINS]++;
-        const px = (i / 4) % canvas.width;
-        if (px < canvas.width / 2) leftBright += s;
-        else rightBright += s;
-      }
-
-      let maxBin = 0, maxCount = 0;
-      for (let b = 0; b < HUE_BINS; b++) {
-        if (hueCounts[b] > maxCount) { maxCount = hueCounts[b]; maxBin = b; }
-      }
-      result.dominantHue = Math.round((maxBin + 0.5) / HUE_BINS * 360);
-      result.brightness = Math.min(0.65, Math.max(0.18, totalBright / brightCount));
-
-      // Adaptive accent from dominant hue
-      const c = { h: result.dominantHue, s: 72, l: 62 };
-      c.l = result.brightness > 0.55 ? Math.max(c.l - 14, 38) : Math.min(c.l + 12, 68);
-      c.s = Math.max(c.s - 8, 52);
-      result.accentRgb = hslToRgb(c.h, c.s, c.l);
-
-      // Focus point: center of highest saturation
-      const sid = ctx.getImageData(0, 0, canvas.width, canvas.height);
-      const sd = sid.data;
-      let maxSat = 0, sx = 0, sy = 0;
-      for (let y = 0; y < canvas.height; y++) {
-        for (let x = 0; x < canvas.width; x++) {
-          const idx = (y * canvas.width + x) * 4;
-          const r2 = sd[idx], g2 = sd[idx + 1], b2 = sd[idx + 2];
-          const mmx = Math.max(r2, g2, b2), mmn = Math.min(r2, g2, b2);
-          const sat = mmx === mmn ? 0 : (mmx - mmn) / (510 - mmx - mmn);
-          if (sat > maxSat) { maxSat = sat; sx = x; sy = y; }
-        }
-      }
-      result.focusX = Math.round(sx / canvas.width * 100);
-      result.focusY = Math.round(sy / canvas.height * 100);
-      result.saturation = maxSat;
-      result.side = leftBright > rightBright ? 'left' : 'right';
-    } catch (e) {
-      console.warn('[DreamSkin] Image analysis failed:', e);
+  function setAttr(el, name, value) {
+    if (el.getAttribute(name) === String(value)) return false;
+    if (value === null || value === undefined || value === '') {
+      el.removeAttribute(name);
+    } else {
+      el.setAttribute(name, String(value));
     }
-
-    ANALYSIS_CACHE.set(base64DataUrl, result);
-    return result;
+    return true;
   }
 
-  function hslToRgb(h, s, l) {
-    s /= 100; l /= 100;
-    const a = s * Math.min(l, 1 - l);
-    const f = n => { const k = (n + h / 30) % 12; return l - a * Math.max(Math.min(k - 3, 9 - k, 1), -1); };
-    return [Math.round(f(0) * 255), Math.round(f(8) * 255), Math.round(f(4) * 255)];
+  function setVar(name, value) {
+    if (document.documentElement.style.getPropertyValue(name) === String(value)) return false;
+    if (value === null || value === undefined || value === '') {
+      document.documentElement.style.removeProperty(name);
+    } else {
+      document.documentElement.style.setProperty(name, String(value));
+    }
+    return true;
   }
 
-  function rgbToHex(r, g, b) {
-    return '#' + [r, g, b].map(v => v.toString(16).padStart(2, '0')).join('');
+  function setVars(pairs) {
+    let wrote = 0;
+    for (const [name, value] of Object.entries(pairs)) {
+      if (setVar(name, value)) wrote++;
+    }
+    return wrote;
   }
 
-  // ── Shell detection ────────────────────────────────────────────────────────
-  let currentShell = detectShell();
+  // ── Shell Detection ────────────────────────────────────────────────────────
 
   function detectShell() {
     const html = document.documentElement;
-    const cls = html.className;
-    if (typeof cls === 'string' && (cls.includes('electron-light') || cls.includes('light-mode'))) return 'light';
-    const dk = html.getAttribute('data-theme');
-    if (dk && dk.toLowerCase().includes('light')) return 'light';
-    return 'dark';
+    if (html.classList.contains('electron-dark')) return 'dark';
+    if (html.classList.contains('electron-light')) return 'light';
+    if (html.hasAttribute('data-theme')) {
+      return html.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
+    }
+    if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+      return 'dark';
+    }
+    return 'light';
   }
 
-  // ── Theme application ─────────────────────────────────────────────────────
-  // This receives the compiled CSS (with resolved selectors) from CDP.
-  // It only sets dynamic CSS custom properties and data attributes.
+  function resolvedShell() {
+    const appearance = THEME.appearance || 'auto';
+    if (appearance !== 'auto') return appearance;
+    return detectShell();
+  }
 
-  function applyTheme(meta) {
+  // ── State Management ──────────────────────────────────────────────────────
+
+  function getState() {
+    try { return window[K.STATE] || null; } catch (_) { return null; }
+  }
+
+  function setState(state) {
+    try { window[K.STATE] = state; } catch (_) {}
+  }
+
+  function initState(installToken) {
+    if (window[K.STATE]) {
+      const prev = window[K.STATE];
+      if (prev.installToken === installToken && prev.styleMode && prev.rootPasses > 0) {
+        return prev;
+      }
+    }
+    const state = {
+      installToken,
+      styleMode: null,
+      shell: null,
+      rootPasses: 0,
+      routePasses: 0,
+      layoutReads: 0,
+      attrWrites: 0,
+      styleWrites: 0,
+      styleRepairs: 0,
+      analysis: null,
+      artCacheKey: ART_KEY,
+    };
+    setState(state);
+    return state;
+  }
+
+  // ── Style Installation ─────────────────────────────────────────────────────
+
+  function installCSS(rawCSS) {
+    const state = getState();
+    if (!state || window[K.DISABLED]) return 'disabled';
+
+    // Remove previous style element
+    const oldEl = document.getElementById(K.STYLE_ID);
+    if (oldEl) oldEl.remove();
+
+    let styleMode;
+
+    // Try adoptedStyleSheets (CSSStyleSheet API) — preferred
+    if (typeof CSSStyleSheet !== 'undefined' && typeof document.adoptedStyleSheets !== 'undefined') {
+      try {
+        const sheet = new CSSStyleSheet();
+        sheet.replaceSync(rawCSS);
+        const reg = window[K.STYLE_REG] || new Set();
+        reg.add(sheet);
+        try { window[K.STYLE_REG] = reg; } catch (_) {}
+
+        const current = document.adoptedStyleSheets;
+        if (!current.includes(sheet)) {
+          document.adoptedStyleSheets = [...current, sheet];
+        }
+        styleMode = 'adopted';
+        if (state) state.styleMode = 'adopted';
+        return 'adopted';
+      } catch (e) {
+        console.warn('[DreamSkin] adoptedStyleSheets failed, falling back:', e.message);
+      }
+    }
+
+    // Fallback: <style> element injection
+    try {
+      const styleEl = document.createElement('style');
+      styleEl.id = K.STYLE_ID;
+      styleEl.textContent = rawCSS;
+      const head = document.head || document.documentElement;
+      head.appendChild(styleEl);
+      styleMode = 'style';
+      if (state) state.styleMode = 'style';
+      return 'style';
+    } catch (e) {
+      console.warn('[DreamSkin] Style element injection failed:', e.message);
+      return 'error';
+    }
+  }
+
+  // ── Image Analysis ────────────────────────────────────────────────────────
+
+  function analyzeArt(artUrl) {
+    const state = getState();
+    if (!artUrl || !artUrl.startsWith('data:')) return null;
+
+    return new Promise((resolve) => {
+      const timer = setTimeout(() => resolve(null), 6000);
+
+      try {
+        const img = new Image();
+        const objectUrl = URL.createObjectURL(dataUrlToBlob(artUrl));
+
+        img.onload = () => {
+          URL.revokeObjectURL(objectUrl);
+          try { clearTimeout(timer); } catch (_) {}
+
+          const maxDim = 96;
+          let w = img.naturalWidth;
+          let h = img.naturalHeight;
+          if (w > maxDim || h > maxDim) {
+            const scale = maxDim / Math.max(w, h);
+            w = Math.round(w * scale);
+            h = Math.round(h * scale);
+          }
+
+          const canvas = document.createElement('canvas');
+          canvas.width = w;
+          canvas.height = h;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, w, h);
+
+          let data;
+          try { data = ctx.getImageData(0, 0, w, h).data; }
+          catch (_) { return resolve(null); }
+
+          // Color binning: 24 hue bins weighted by saturation
+          const hueBins = new Float32Array(24);
+          let totalSat = 0;
+          let satX = 0, satY = 0;
+          const pixels = w * h;
+
+          for (let i = 0; i < data.length; i += 4) {
+            const r = data[i], g = data[i + 1], b = data[i + 2];
+            const max = Math.max(r, g, b);
+            const min = Math.min(r, g, b);
+            const l = (max + min) / 2;
+            const s = max === min ? 0 : (max - min) / (max + min || 1);
+
+            if (s > 0.1) {
+              let h = 0;
+              if (max === r) h = ((g - b) / (max - min || 1)) * 60;
+              else if (max === g) h = (2 + (b - r) / (max - min || 1)) * 60;
+              else h = (4 + (r - g) / (max - min || 1)) * 60;
+              if (h < 0) h += 360;
+
+              const bin = Math.floor(h / 15) % 24;
+              hueBins[bin] += s;
+              totalSat += s;
+              const x = (i / 4) % w;
+              const y = Math.floor((i / 4) / w);
+              satX += x * s;
+              satY += y * s;
+            }
+          }
+
+          // Focus point: center of highest saturation area
+          let focusX = w / 2, focusY = h / 2;
+          if (totalSat > 0) {
+            focusX = satX / totalSat;
+            focusY = satY / totalSat;
+          }
+
+          // Safe area: information density comparison (left vs right zones)
+          const leftZone = { variance: 0, edges: 0, count: 0 };
+          const rightZone = { variance: 0, edges: 0, count: 0 };
+          const midX = Math.floor(w / 2);
+
+          for (let y = 0; y < h; y++) {
+            for (let x = 0; x < w; x++) {
+              const idx = (y * w + x) * 4;
+              const r = data[idx], g = data[idx + 1], b = data[idx + 2];
+              const lum = 0.299 * r + 0.587 * g + 0.114 * b;
+              const variance = (lum - 128) ** 2;
+
+              const zone = x < midX ? leftZone : rightZone;
+              zone.variance += variance;
+              zone.count++;
+
+              // Simple edge detection (compare with neighbors)
+              if (x > 0 && y > 0) {
+                const prevIdx = (y * w + (x - 1)) * 4;
+                const prevLum = 0.299 * data[prevIdx] + 0.587 * data[prevIdx + 1] + 0.114 * data[prevIdx + 2];
+                if (Math.abs(lum - prevLum) > 30) zone.edges++;
+              }
+            }
+          }
+
+          const leftInfo = leftZone.count > 0 ? leftZone.variance / leftZone.count + leftZone.edges * 0.01 : 0;
+          const rightInfo = rightZone.count > 0 ? rightZone.variance / rightZone.count + rightZone.edges * 0.01 : 0;
+
+          let safeArea;
+          if (Math.abs(leftInfo - rightInfo) < 0.5) {
+            safeArea = 'center';
+          } else if (leftInfo > rightInfo) {
+            safeArea = 'left';
+          } else {
+            safeArea = 'right';
+          }
+
+          // Brightness (average luminance)
+          let totalLum = 0;
+          for (let i = 0; i < data.length; i += 4) {
+            totalLum += 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
+          }
+          const brightness = totalLum / pixels;
+
+          // Dominant hue
+          let maxBin = 0, maxVal = 0;
+          for (let b = 0; b < 24; b++) {
+            if (hueBins[b] > maxVal) { maxVal = hueBins[b]; maxBin = b; }
+          }
+          const dominantHue = (maxBin * 15 + 7.5) % 360;
+
+          resolve({
+            hueBins: Array.from(hueBins),
+            dominantHue,
+            saturation: totalSat / pixels,
+            focusX: focusX / w,
+            focusY: focusY / h,
+            safeArea,
+            brightness,
+            width: w,
+            height: h,
+          });
+
+        };
+
+        img.onerror = () => { URL.revokeObjectURL(objectUrl); resolve(null); };
+        img.src = objectUrl;
+      } catch (_) {
+        resolve(null);
+      }
+    });
+  }
+
+  function dataUrlToBlob(dataUrl) {
+    const parts = dataUrl.split(',');
+    const mime = parts[0].match(/:(.*?);/);
+    const b64 = atob(parts[1]);
+    const arr = new Uint8Array(b64.length);
+    for (let i = 0; i < b64.length; i++) arr[i] = b64.charCodeAt(i);
+    return new Blob([arr], { type: mime ? mime[1] : 'image/png' });
+  }
+
+  // ── Adaptive Palette ──────────────────────────────────────────────────────
+
+  function makeAdaptivePalette(analysis, shell) {
+    const colors = THEME.colors || {};
+    const themePalette = {
+      background: colors.background || '#0a0a0f',
+      panel: colors.panel || '#14141f',
+      panelAlt: colors.panelAlt || '#1a1a2e',
+      accent: colors.accent || '#7c3aed',
+      accentAlt: colors.accentAlt || '#a78bfa',
+      secondary: colors.secondary || '#06b6d4',
+      highlight: colors.highlight || '#f59e0b',
+      text: colors.text || '#e2e8f0',
+      muted: colors.muted || '#64748b',
+      line: colors.line || '#1e293b',
+    };
+
+    // If auto appearance, don't let bright wallpaper flip the shell detection
+    const isDarkShell = shell === 'dark';
+
+    // Image-derived accent tweaking
+    if (analysis && analysis.saturation > 0.05) {
+      const hue = analysis.dominantHue;
+      const sat = Math.min(analysis.saturation * 2, 1);
+      const lum = isDarkShell ? 0.55 : 0.45;
+
+      // Shift accent hue toward dominant image hue
+      themePalette.accent = hslToHex(hue, sat, lum);
+      themePalette.accentAlt = hslToHex((hue + 30) % 360, sat * 0.7, lum);
+      themePalette.secondary = hslToHex((hue + 180) % 360, sat * 0.6, lum * 0.9);
+    }
+
+    // Ensure text contrast
+    if (isDarkShell) {
+      themePalette.background = adjustBrightness(themePalette.background, analysis ? (analysis.brightness > 0.6 ? -0.05 : -0.15) : -0.15);
+      themePalette.panel = adjustBrightness(themePalette.panel, analysis ? (analysis.brightness > 0.6 ? -0.03 : -0.1) : -0.1);
+      themePalette.text = ensureContrast(themePalette.text, themePalette.background, '#ffffff', '#1a1a2e');
+    } else {
+      themePalette.background = adjustBrightness(themePalette.background, analysis ? (analysis.brightness < 0.3 ? 0.05 : 0.15) : 0.15);
+      themePalette.panel = adjustBrightness(themePalette.panel, analysis ? (analysis.brightness < 0.3 ? 0.03 : 0.1) : 0.1);
+      themePalette.text = ensureContrast(themePalette.text, themePalette.background, '#1a1a2e', '#ffffff');
+    }
+
+    return themePalette;
+  }
+
+  function hslToHex(h, s, l) {
+    s = Math.max(0, Math.min(1, s));
+    l = Math.max(0, Math.min(1, l));
+    const c = (1 - Math.abs(2 * l - 1)) * s;
+    const x = c * (1 - Math.abs(((h / 60) % 2) - 1));
+    const m = l - c / 2;
+    let r, g, b;
+    if (h < 60)      { r = c; g = x; b = 0; }
+    else if (h < 120) { r = x; g = c; b = 0; }
+    else if (h < 180) { r = 0; g = c; b = x; }
+    else if (h < 240) { r = 0; g = x; b = c; }
+    else if (h < 300) { r = x; g = 0; b = c; }
+    else              { r = c; g = 0; b = x; }
+    const toHex = v => Math.round((v + m) * 255).toString(16).padStart(2, '0');
+    return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
+  }
+
+  function hexToRgb(hex) {
+    const m = hex.replace('#', '').match(/.{2}/g);
+    if (!m || m.length < 3) return { r: 128, g: 128, b: 128 };
+    return { r: parseInt(m[0], 16), g: parseInt(m[1], 16), b: parseInt(m[2], 16) };
+  }
+
+  function rgbToHex(r, g, b) {
+    const toH = v => Math.round(Math.max(0, Math.min(255, v))).toString(16).padStart(2, '0');
+    return `#${toH(r)}${toH(g)}${toH(b)}`;
+  }
+
+  function adjustBrightness(hex, amount) {
+    const { r, g, b } = hexToRgb(hex);
+    return rgbToHex(r + amount * 255, g + amount * 255, b + amount * 255);
+  }
+
+  function luminance(r, g, b) {
+    return 0.299 * r + 0.587 * g + 0.114 * b;
+  }
+
+  function ensureContrast(fg, bgHex, darkFallback, lightFallback) {
+    const bg = hexToRgb(bgHex);
+    const fgC = hexToRgb(fg);
+    const fgLum = luminance(fgC.r, fgC.g, fgC.b);
+    const bgLum = luminance(bg.r, bg.g, bg.b);
+    const ratio = (Math.max(fgLum, bgLum) + 0.05) / (Math.min(fgLum, bgLum) + 0.05);
+    if (ratio < 4.5) {
+      return bgLum > 0.5 ? darkFallback : lightFallback;
+    }
+    return fg;
+  }
+
+  // ── Dynamic Effects ───────────────────────────────────────────────────────
+
+  function createParticle() {
+    const el = document.createElement('div');
+    el.className = 'ds-particle';
+    const size = 2 + Math.random() * 4;
+    el.style.cssText = `
+      position:fixed; width:${size}px; height:${size}px;
+      border-radius:50%; pointer-events:none; z-index:99999;
+      left:${Math.random() * 100}vw; top:${Math.random() * 100}vh;
+      opacity:${0.2 + Math.random() * 0.5};
+      background: ${['rgba(124,58,237,0.6)','rgba(6,182,212,0.5)','rgba(167,139,250,0.4)','rgba(255,255,255,0.3)'][Math.floor(Math.random()*4)]};
+      animation: ds-particle-float ${8 + Math.random() * 12}s linear infinite;
+      animation-delay: -${Math.random() * 20}s;
+    `;
+    document.body.appendChild(el);
+    return el;
+  }
+
+  function createGlowBlob() {
+    const el = document.createElement('div');
+    el.className = 'ds-glow';
+    const size = 200 + Math.random() * 400;
+    const x = Math.random() * 100;
+    const y = Math.random() * 100;
+    el.style.cssText = `
+      position:fixed; width:${size}px; height:${size}px;
+      border-radius:50%; pointer-events:none; z-index:0;
+      left:${x}vw; top:${y}vh;
+      background: radial-gradient(circle, rgba(124,58,237,0.12) 0%, rgba(6,182,212,0.06) 50%, transparent 70%);
+      filter: blur(40px);
+      animation: ds-glow-drift ${20 + Math.random() * 30}s ease-in-out infinite alternate;
+      animation-delay: -${Math.random() * 30}s;
+    `;
+    document.body.appendChild(el);
+    return el;
+  }
+
+  function createSparkle(x, y) {
+    const el = document.createElement('div');
+    el.className = 'ds-sparkle';
+    el.style.cssText = `
+      position:fixed; left:${x}px; top:${y}px;
+      width:6px; height:6px; border-radius:50%;
+      background: rgba(255,255,255,0.9);
+      pointer-events:none; z-index:100000;
+      box-shadow: 0 0 6px 2px rgba(124,58,237,0.6);
+      animation: ds-sparkle 0.8s ease-out forwards;
+    `;
+    document.body.appendChild(el);
+    setTimeout(() => el.remove(), 900);
+    return el;
+  }
+
+  function injectDynamicStyles() {
+    const id = 'dream-skin-dynamic-styles';
+    if (document.getElementById(id)) return;
+
+    const style = document.createElement('style');
+    style.id = id;
+    style.textContent = `
+      @keyframes ds-particle-float {
+        0%   { transform: translateY(0) translateX(0); opacity: 0; }
+        10%  { opacity: 0.6; }
+        90%  { opacity: 0.1; }
+        100% { transform: translateY(-100vh) translateX(${(Math.random()-0.5)*200}px); opacity: 0; }
+      }
+      @keyframes ds-glow-drift {
+        0%   { transform: translate(0, 0) scale(1); }
+        100% { transform: translate(${(Math.random()-0.5)*100}px, ${(Math.random()-0.5)*100}px) scale(1.3); }
+      }
+      @keyframes ds-sparkle {
+        0%   { transform: scale(1); opacity: 1; }
+        50%  { transform: scale(2); opacity: 0.5; }
+        100% { transform: scale(0) translateY(-20px); opacity: 0; }
+      }
+    `;
+    document.head.appendChild(style);
+  }
+
+  function setupDynamicEffects(analysis) {
+    injectDynamicStyles();
+
+    // Particles
+    const particles = [];
+    for (let i = 0; i < 30; i++) {
+      particles.push(createParticle());
+    }
+
+    // Glow blobs
+    const blobs = [];
+    for (let i = 0; i < 4; i++) {
+      blobs.push(createGlowBlob());
+    }
+
+    // Mouse interaction
+    const handleClick = (e) => {
+      createSparkle(e.clientX, e.clientY);
+      for (let i = 0; i < 3; i++) {
+        setTimeout(() => createSparkle(
+          e.clientX + (Math.random() - 0.5) * 40,
+          e.clientY + (Math.random() - 0.5) * 40
+        ), i * 50);
+      }
+    };
+
+    // Mouse vignette
+    let vignette = document.querySelector('.ds-mouse-vignette');
+    if (!vignette) {
+      vignette = document.createElement('div');
+      vignette.className = 'ds-mouse-vignette';
+      vignette.style.cssText = `
+        position: fixed; inset: 0; pointer-events: none; z-index: 1;
+        background: radial-gradient(circle 400px at 50% 50%, rgba(124,58,237,0.06) 0%, transparent 70%);
+        transition: background 0.3s ease;
+      `;
+      document.body.appendChild(vignette);
+    }
+
+    const handleMouseMove = (e) => {
+      if (vignette) {
+        vignette.style.background = `radial-gradient(circle 400px at ${e.clientX}px ${e.clientY}px, rgba(124,58,237,0.08) 0%, transparent 70%)`;
+      }
+    };
+
+    document.addEventListener('click', handleClick, true);
+    document.addEventListener('mousemove', handleMouseMove, true);
+
+    return {
+      particles,
+      blobs,
+      vignette,
+      cleanup() {
+        particles.forEach(p => { try { p.remove(); } catch (_) {} });
+        blobs.forEach(b => { try { b.remove(); } catch (_) {} });
+        if (vignette) { try { vignette.remove(); } catch (_) {} }
+        document.removeEventListener('click', handleClick, true);
+        document.removeEventListener('mousemove', handleMouseMove, true);
+        const dynStyle = document.getElementById('dream-skin-dynamic-styles');
+        if (dynStyle) dynStyle.remove();
+      }
+    };
+  }
+
+  // ── Main Ensure ───────────────────────────────────────────────────────────
+
+  const aCache = new Map();
+
+  function ensureMain(opts) {
+    const state = getState();
+    if (!state) return;
+
+    state.rootPasses++;
+    state.layoutReads++;
     const html = document.documentElement;
-    const isDark = currentShell === 'dark';
+    const body = document.body;
 
-    // Mark skin as active
-    html.setAttribute('data-dream-skin', 'active');
-    html.setAttribute('data-dream-shell', currentShell);
+    if (!body) return;
 
-    // Image analysis & adaptive palette
-    let bgData = meta.backgroundBase64;
+    // Shell
+    const shell = resolvedShell();
+    if (setAttr(html, 'data-dream-shell', shell)) state.attrWrites++;
 
-    // Check sessionStorage for large images
-    if (!bgData && meta._bgFromStorage) {
-      try { bgData = sessionStorage.getItem('__dreamSkin_bg'); } catch (_) {}
+    if (state.shell !== shell) {
+      state.shell = shell;
+      state.styleRepairs++;
     }
 
-    if (bgData) {
-      const analysis = analyzeImage(bgData);
+    // Active flag
+    if (setAttr(html, 'data-dream-skin', 'active')) state.attrWrites++;
 
-      // Set data attributes for CSS to use
-      html.setAttribute('data-dream-art-safe', analysis.side);
-      html.setAttribute('data-dream-art-focus-x', analysis.focusX + '%');
-      html.setAttribute('data-dream-art-focus-y', analysis.focusY + '%');
-      html.setAttribute('data-dream-art-position', `${analysis.focusX}% ${analysis.focusY}%`);
-      html.setAttribute('data-dream-task-mode', meta.taskMode || 'immersive');
-      html.setAttribute('data-dream-art-task-mode', meta.taskMode || 'immersive');
-      html.setAttribute('data-dream-art', `url(${bgData})`);
+    // ── Theme ──────────────────────────────────────────────────────────────
 
-      // Tagline element in home hero
-      if (meta.tagline) {
-        let tagEl = document.querySelector('.ds-tagline');
-        if (!tagEl) {
-          tagEl = document.createElement('span');
-          tagEl.className = 'ds-tagline';
-          const heroCard = document.querySelector(SELECTORS.homeRoute + ' > div:first-child > div:first-child > div:first-child');
-          if (heroCard) heroCard.appendChild(tagEl);
-        }
-        tagEl.textContent = meta.tagline;
-      }
+    const palette = makeAdaptivePalette(state.analysis, shell);
 
-      // Adaptive accent palette
-      const accent = analysis.accentRgb;
-      const accentHex = rgbToHex(accent[0], accent[1], accent[2]);
-      const secondary = accent.map(v => Math.round(v * 0.88));
-      const highlight = accent.map(v => Math.round(v * 0.72));
-      const secondaryHex = rgbToHex(...secondary);
-      const highlightHex = rgbToHex(...highlight);
+    // Brand text
+    if (THEME.name && setAttr(html, 'data-dream-skin-name', THEME.name)) state.attrWrites++;
+    if (THEME.tagline && setAttr(html, 'data-dream-skin-tagline', THEME.tagline)) state.attrWrites++;
+    if (THEME.projectPrefix && setAttr(html, 'data-dream-skin-project-prefix', THEME.projectPrefix)) state.attrWrites++;
+    if (THEME.projectLabel && setAttr(html, 'data-dream-skin-project-label', THEME.projectLabel)) state.attrWrites++;
+    if (THEME.brandSubtitle && setAttr(html, 'data-dream-skin-brand-subtitle', THEME.brandSubtitle)) state.attrWrites++;
+    if (THEME.statusText && setAttr(html, 'data-dream-skin-status', THEME.statusText)) state.attrWrites++;
+    if (THEME.quote && setAttr(html, 'data-dream-skin-quote', THEME.quote)) state.attrWrites++;
+    if (artDataUrl && setAttr(html, 'data-dream-skin-art', artDataUrl)) state.attrWrites++;
 
-      const root = document.documentElement;
-      root.style.setProperty('--ds-accent-rgb', `${accent[0]} ${accent[1]} ${accent[2]}`);
-      root.style.setProperty('--ds-accent', accentHex);
-      root.style.setProperty('--ds-accent-soft', accentHex + '33');
-      root.style.setProperty('--ds-secondary-rgb', `${secondary[0]} ${secondary[1]} ${secondary[2]}`);
-      root.style.setProperty('--ds-secondary', secondaryHex);
-      root.style.setProperty('--ds-highlight-rgb', `${highlight[0]} ${highlight[1]} ${highlight[2]}`);
-      root.style.setProperty('--ds-highlight', highlightHex);
+    // ── Art positioning ────────────────────────────────────────────────────
 
-      if (!hasCSSSupports) {
-        // Fallback for browsers without :has(): hide art overlays in thread views
-        // by adding a class we can target
-        const threadEl = document.querySelector('[class*="message"], article, [role="main"]');
-        if (threadEl && !document.querySelector('[class*="home"]')) {
-          html.setAttribute('data-dream-no-has', 'true');
-        }
-      }
+    if (state.analysis) {
+      const a = state.analysis;
+      const fx = Math.round(a.focusX * 100);
+      const fy = Math.round(a.focusY * 100);
+
+      if (setAttr(html, 'data-dream-art-wide', a.wide ? 'true' : 'false')) state.attrWrites++;
+      if (setAttr(html, 'data-dream-art-safe', a.safeArea || 'center')) state.attrWrites++;
+      if (setAttr(html, 'data-dream-art-aspect', String(a.aspect || 1))) state.attrWrites++;
+
+      setVar('--dream-skin-focus-x', `${fx}%`);
+      setVar('--dream-skin-focus-y', `${fy}%`);
+      setVar('--dream-art-focus-x', `${fx}%`);
+      setVar('--dream-art-focus-y', `${fy}%`);
     }
+
+    // ── Colors ─────────────────────────────────────────────────────────────
+
+    const rgbPairs = {
+      '--ds-bg-rgb': rgbStr(palette.background),
+      '--ds-panel-rgb': rgbStr(palette.panel),
+      '--ds-panel-2-rgb': rgbStr(palette.panelAlt),
+      '--ds-accent-rgb': rgbStr(palette.accent),
+      '--ds-accent-alt-rgb': rgbStr(palette.accentAlt),
+      '--ds-secondary-rgb': rgbStr(palette.secondary),
+      '--ds-highlight-rgb': rgbStr(palette.highlight),
+      '--ds-text-rgb': rgbStr(palette.text),
+      '--ds-muted-rgb': rgbStr(palette.muted),
+      '--ds-line-rgb': rgbStr(palette.line),
+    };
+
+    const wrote = setVars({
+      ...rgbPairs,
+      '--ds-bg': palette.background,
+      '--ds-panel': palette.panel,
+      '--ds-panel-2': palette.panelAlt,
+      '--ds-green': '#10b981',
+      '--ds-lime': '#84cc16',
+      '--ds-cyan': palette.secondary,
+      '--ds-purple': palette.accent,
+      '--ds-text': palette.text,
+      '--ds-muted': palette.muted,
+      '--ds-line': palette.line,
+      '--ds-accent': palette.accent,
+      '--ds-accent-soft': palette.accentAlt,
+      '--ds-secondary': palette.secondary,
+      '--ds-highlight': palette.highlight,
+      '--ds-on-accent': '#ffffff',
+      '--dream-art-position': state.analysis ? `${Math.round(state.analysis.focusX * 100)}% ${Math.round(state.analysis.focusY * 100)}%` : '50% 50%',
+      '--dream-skin-art-position': state.analysis ? `${Math.round(state.analysis.focusX * 100)}% ${Math.round(state.analysis.focusY * 100)}%` : '50% 50%',
+    });
+    state.styleWrites += wrote;
+  }
+
+  function rgbStr(hex) {
+    const m = hex.replace('#', '').match(/.{2}/g);
+    if (!m || m.length < 3) return '10,11,15';
+    return `${parseInt(m[0], 16)},${parseInt(m[1], 16)},${parseInt(m[2], 16)}`;
+  }
+
+  // ── Cleanup ───────────────────────────────────────────────────────────────
+
+  function cleanup() {
+    const html = document.documentElement;
+
+    // Remove all data-dream-* attributes
+    for (const attr of ROOT_ATTRS) {
+      html.removeAttribute(attr);
+    }
+
+    // Remove CSS custom properties
+    for (const v of THEME_VARS) {
+      html.style.removeProperty(v);
+    }
+
+    // Remove adopted style sheets we registered
+    try {
+      const reg = window[K.STYLE_REG];
+      if (reg) {
+        document.adoptedStyleSheets = document.adoptedStyleSheets.filter(s => !reg.has(s));
+        reg.clear();
+      }
+    } catch (_) {}
+
+    // Remove style element
+    const styleEl = document.getElementById(K.STYLE_ID);
+    if (styleEl) styleEl.remove();
+
+    // Remove dynamic styles
+    const dynStyle = document.getElementById('dream-skin-dynamic-styles');
+    if (dynStyle) dynStyle.remove();
+
+    // Remove vignette
+    const vignette = document.querySelector('.ds-mouse-vignette');
+    if (vignette) vignette.remove();
+
+    // Remove particles and glows
+    document.querySelectorAll('.ds-particle, .ds-glow, .ds-sparkle').forEach(el => el.remove());
+
+    // Revoke art object URL
+    if (window[K.STATE] && window[K.STATE].artObjectUrl) {
+      try { URL.revokeObjectURL(window[K.STATE].artObjectUrl); } catch (_) {}
+    }
+
+    // Reset install flag
+    window.__DREAM_SKIN_EARLY_APPLIED__ = false;
+
+    // Clear state
+    try { window[K.STATE] = null; } catch (_) {}
+  }
+
+  // ── Shell Watcher ─────────────────────────────────────────────────────────
+
+  let observer = null;
+  let observerCleanup = null;
+
+  function startShellWatcher() {
+    if (observer) return;
+
+    observer = new MutationObserver(() => {
+      const state = getState();
+      if (!state) return;
+      const currentShell = resolvedShell();
+      if (state.shell !== currentShell) {
+        state.styleRepairs++;
+        ensureMain();
+      }
+    });
+
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['class', 'data-theme'],
+    });
+  }
+
+  function stopShellWatcher() {
+    if (observer) { observer.disconnect(); observer = null; }
+  }
+
+  // ── Install ──────────────────────────────────────────────────────────────
+
+  function install() {
+    if (!cssText || window[K.DISABLED]) {
+      return { installed: false, reason: 'no-css-or-disabled' };
+    }
+
+    const installToken = crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`;
+    const state = initState(installToken);
+
+    if (state.installToken === installToken && state.rootPasses > 0 && state.styleMode) {
+      // Re-entry with same token — just re-apply
+      return ensureAndRun({ root: true, reentry: true });
+    }
+
+    // CSS installation
+    const styleMode = installCSS(cssText);
+    if (styleMode === 'error' || styleMode === 'disabled') {
+      return { installed: false, styleMode, reason: 'install-failed' };
+    }
+    state.styleMode = styleMode;
+
+    // Art object URL
+    let artObjectUrl = null;
+    if (artDataUrl) {
+      try { artObjectUrl = URL.createObjectURL(dataUrlToBlob(artDataUrl)); } catch (_) {}
+    }
+    state.artObjectUrl = artObjectUrl;
+
+    // Image analysis
+    const artAnalysis = null;
+    const analysisTimer = setTimeout(() => {
+      const s = getState();
+      if (s && s.installToken === installToken) {
+        s.styleRepairs++;
+        ensureMain({ root: true });
+      }
+    }, 200);
+
+    state.analysisTimer = analysisTimer;
+
+    const analysisPromise = analyzeArt(artDataUrl);
+    analysisPromise.then((analysis) => {
+      const state = getState();
+      if (!analysis || state?.installToken !== installToken || window[K.DISABLED]) return;
+      artAnalysis = analysis; state.analysis = analysis;
+      if (ART_KEY) {
+        aCache.set(ART_KEY, analysis);
+        while (aCache.size > 8) aCache.delete(aCache.keys().next().value);
+      }
+      ensureMain({ root: true });
+    }).catch(() => {});
 
     // Dynamic effects
-    initDynamicEffects(meta.dynamic);
-  }
+    const effects = setupDynamicEffects(null);
 
-  function removeTheme() {
-    const html = document.documentElement;
-    html.removeAttribute('data-dream-skin');
-    html.removeAttribute('data-dream-shell');
-    html.removeAttribute('data-dream-art');
-    html.removeAttribute('data-dream-art-safe');
-    html.removeAttribute('data-dream-art-focus-x');
-    html.removeAttribute('data-dream-art-focus-y');
-    html.removeAttribute('data-dream-art-position');
-    html.removeAttribute('data-dream-task-mode');
-    html.removeAttribute('data-dream-art-task-mode');
-    html.removeAttribute('data-dream-no-has');
-    html.removeAttribute('data-dream-dynamic');
-    html.removeAttribute('data-dream-style');
-    const tagEl = document.querySelector('.ds-tagline');
-    if (tagEl) tagEl.remove();
-    try { sessionStorage.removeItem('__dreamSkin_bg'); } catch (_) {}
-    clearDynamicEffects();
-  }
+    // Shell watcher
+    startShellWatcher();
 
-  // ── Dynamic effects engine ────────────────────────────────────────────────
-  let dynamicCleanup = null;
-  let mouseTracker = null;
-  let sparkleTimer = null;
-  let glowElements = [];
+    // Initial apply
+    const result = ensureAndRun({ root: true, reentry: false });
 
-  function createParticle(shellMain) {
-    const particle = document.createElement('div');
-    particle.className = 'ds-particle';
-    const size = 2 + Math.random() * 5;
-    const isAccent = Math.random() < 0.3;
-    const root = document.documentElement;
-    const accentRgb = getComputedStyle(root).getPropertyValue('--ds-accent-rgb').trim() || '130 152 163';
-    const textRgb = getComputedStyle(root).getPropertyValue('--ds-text-rgb').trim() || '237 240 241';
-
-    particle.style.width = size + 'px';
-    particle.style.height = size + 'px';
-    particle.style.left = Math.random() * 100 + '%';
-    particle.style.top = '100%';
-    particle.style.setProperty('--ds-particle-duration', (6 + Math.random() * 10) + 's');
-    particle.style.setProperty('--ds-particle-delay', (Math.random() * 8) + 's');
-    particle.style.setProperty('--ds-particle-opacity', (0.15 + Math.random() * 0.5).toFixed(2));
-    particle.style.setProperty('--ds-particle-drift-x', ((-15 + Math.random() * 30)) + 'px');
-    particle.style.setProperty('--ds-particle-drift-y', (10 + Math.random() * 40) + 'px');
-    particle.style.background = isAccent
-      ? `rgb(${accentRgb} / 0.7)`
-      : `rgb(${textRgb} / 0.45)`;
-    particle.style.boxShadow = isAccent
-      ? `0 0 ${size * 2}px rgb(${accentRgb} / 0.25)`
-      : `0 0 ${size}px rgb(${textRgb} / 0.12)`;
-
-    shellMain.appendChild(particle);
-
-    // Remove after animation
-    const duration = parseFloat(particle.style.getPropertyValue('--ds-particle-duration'));
-    const delay = parseFloat(particle.style.getPropertyValue('--ds-particle-delay'));
-    setTimeout(() => {
-      if (particle.parentNode) particle.parentNode.removeChild(particle);
-    }, (duration + delay) * 1000 + 500);
-  }
-
-  function createGlowBlob(shellMain) {
-    const glow = document.createElement('div');
-    glow.className = 'ds-glow';
-    const size = 150 + Math.random() * 350;
-    const isAccent = Math.random() < 0.5;
-    const root = document.documentElement;
-    const accentRgb = getComputedStyle(root).getPropertyValue('--ds-accent-rgb').trim() || '130 152 163';
-    const panelRgb = getComputedStyle(root).getPropertyValue('--ds-panel-rgb').trim() || '25 28 34';
-
-    glow.style.width = size + 'px';
-    glow.style.height = size + 'px';
-    glow.style.left = Math.random() * 80 + '%';
-    glow.style.top = Math.random() * 80 + '%';
-    glow.style.setProperty('--ds-glow-duration', (8 + Math.random() * 16) + 's');
-    glow.style.animationDelay = (Math.random() * 6) + 's';
-    glow.style.background = isAccent
-      ? `radial-gradient(circle, rgb(${accentRgb} / 0.15) 0%, transparent 70%)`
-      : `radial-gradient(circle, rgb(${panelRgb} / 0.25) 0%, transparent 70%)`;
-
-    shellMain.appendChild(glow);
-    glowElements.push(glow);
-  }
-
-  function createSparkle(shellMain, x, y) {
-    const sparkle = document.createElement('div');
-    sparkle.className = 'ds-sparkle';
-    sparkle.style.left = x + 'px';
-    sparkle.style.top = y + 'px';
-    shellMain.appendChild(sparkle);
-    setTimeout(() => { if (sparkle.parentNode) sparkle.parentNode.removeChild(sparkle); }, 500);
-  }
-
-  function initDynamicEffects(meta) {
-    // Clean up previous
-    clearDynamicEffects();
-
-    if (!meta || !meta.dynamic) return;
-
-    const shellMain = document.querySelector(SELECTORS.shellMain);
-    if (!shellMain) return;
-
-    // Set attribute
-    document.documentElement.setAttribute('data-dream-dynamic', 'on');
-    if (meta.style === 'hud') {
-      document.documentElement.setAttribute('data-dream-style', 'hud');
-    }
-
-    // Create glow blobs
-    const glowCount = meta.dynamic.glowCount || 3;
-    for (let i = 0; i < glowCount; i++) {
-      createGlowBlob(shellMain);
-    }
-
-    // Create mouse vignette
-    const vignette = document.createElement('div');
-    vignette.className = 'ds-mouse-vignette';
-    shellMain.appendChild(vignette);
-    glowElements.push(vignette);
-
-    // Mouse tracker for parallax + vignette
-    let mouseTimeout;
-    shellMain.addEventListener('mousemove', (e) => {
-      clearTimeout(mouseTimeout);
-      const rect = shellMain.getBoundingClientRect();
-      const x = ((e.clientX - rect.left) / rect.width * 100).toFixed(1);
-      const y = ((e.clientY - rect.top) / rect.height * 100).toFixed(1);
-
-      // Update vignette
-      if (vignette.parentNode) {
-        vignette.style.setProperty('--ds-mouse-x', x + '%');
-        vignette.style.setProperty('--ds-mouse-y', y + '%');
-      }
-
-      // Parallax on background art
-      const art = document.querySelector('[data-dream-art]');
-      if (art && art.offsetParent) {
-        const px = ((e.clientX - rect.left) / rect.width - 0.5) * 8;
-        const py = ((e.clientY - rect.top) / rect.height - 0.5) * 6;
-        art.style.backgroundPosition = `calc(var(--ds-art-position) + ${px}px) calc(var(--ds-art-position) + ${py}px)`;
-      }
-    });
-
-    // Sparkle on click
-    shellMain.addEventListener('click', (e) => {
-      for (let i = 0; i < 6; i++) {
-        setTimeout(() => {
-          createSparkle(shellMain,
-            e.clientX - shellMain.getBoundingClientRect().left + (Math.random() - 0.5) * 30,
-            e.clientY - shellMain.getBoundingClientRect().top + (Math.random() - 0.5) * 30
-          );
-        }, i * 25);
-      }
-    });
-
-    // Particle spawner
-    const particleCount = meta.dynamic.particleCount || 35;
-    const spawnInterval = setInterval(() => {
-      const particles = shellMain.querySelectorAll('.ds-particle');
-      const maxCount = Math.round(particleCount * (getComputedStyle(root).getPropertyValue('--ds-particle-speed') || '1'));
-      if (particles.length < maxCount) {
-        createParticle(shellMain);
-      }
-    }, 600);
-
-    dynamicCleanup = () => {
-      clearInterval(spawnInterval);
-      clearTimeout(mouseTimeout);
-      document.documentElement.removeAttribute('data-dream-dynamic');
-      document.documentElement.removeAttribute('data-dream-dynamic-particles');
-      glowElements.forEach(el => { if (el.parentNode) el.parentNode.removeChild(el); });
-      glowElements = [];
-      shellMain.querySelectorAll('.ds-particle, .ds-sparkle').forEach(el => el.remove());
-      if (vignette.parentNode) vignette.remove();
+    // Return state reference
+    return {
+      installed: true,
+      styleMode,
+      shell: state.shell,
+      token: installToken,
     };
   }
 
-  function clearDynamicEffects() {
-    if (dynamicCleanup) {
-      dynamicCleanup();
-      dynamicCleanup = null;
-    }
-    document.documentElement.removeAttribute('data-dream-style');
-  }
+  function ensureAndRun(opts) {
+    const state = getState();
+    if (!state) return null;
 
-  function watchShellChange() {
-    const html = document.documentElement;
-    const observer = new MutationObserver(() => {
-      const newShell = detectShell();
-      if (newShell !== currentShell) {
-        currentShell = newShell;
-        const meta = window.__dreamSkinThemeMeta__;
-        if (meta) applyTheme(meta);
-      }
-    });
-    if (html) {
-      observer.observe(html, {
-        attributes: true,
-        attributeFilter: ['class', 'data-theme', 'data-color-scheme'],
-      });
-    }
-  }
+    const analysis = state.analysis;
+    ensureMain(opts);
 
-  // ── Boot ──────────────────────────────────────────────────────────────────
-  function boot() {
-    if (document.getElementById('dream-skin-injected')) return;
-
-    // Expose API for CDP injector communication
-    window.__dreamSkinApi = {
-      apply: (meta) => {
-        window.__dreamSkinThemeMeta__ = meta;
-        applyTheme(meta);
-      },
-      remove: () => {
-        window.__dreamSkinThemeMeta__ = null;
-        removeTheme();
-      },
-      analyze: (base64) => analyzeImage(base64),
-      getShell: detectShell,
-      getSelectors: () => {
-        const tokens = {};
-        for (const [token, key] of Object.entries(SELECTORS)) {
-          tokens[token] = key;
-        }
-        return tokens;
-      },
+    return {
+      rootPasses: state.rootPasses,
+      routePasses: state.routePasses,
+      layoutReads: state.layoutReads,
+      attrWrites: state.attrWrites,
+      styleWrites: state.styleWrites,
+      styleRepairs: state.styleRepairs,
+      styleMode: state.styleMode,
+      shell: state.shell,
+      analysis: !!analysis,
     };
-
-    // Apply initial theme if meta was set before boot
-    if (window.__dreamSkinThemeMeta__) {
-      applyTheme(window.__dreamSkinThemeMeta__);
-    }
-
-    watchShellChange();
   }
 
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', boot);
-  } else {
-    boot();
-  }
+  // ── Entry Point ───────────────────────────────────────────────────────────
 
-})();
+  install();
+})(__DREAM_SKIN_CSS_JSON__, __DREAM_SKIN_ART_JSON__, __DREAM_SKIN_THEME_JSON__)

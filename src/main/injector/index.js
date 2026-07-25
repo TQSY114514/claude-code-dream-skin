@@ -1,412 +1,983 @@
-const CDP = require('chrome-remote-interface');
+/**
+ * Dream Skin — CDP Injector
+ *
+ * Connects to Claude Desktop's embedded Chromium via CDP and injects themes.
+ * Uses raw WebSocket (no chrome-remote-interface dependency).
+ *
+ * Architecture (Codex Dream Skin v1.3.5 patterns):
+ *   1. BrowserIdentityAnchor — a browser-level WS that monitors identity
+ *   2. Per-page CdpSession — dedicated WebSocket per page target
+ *   3. probeSession — verify target is actually Claude Desktop
+ *   4. Payload assembly — CSS + art + theme config + template into one string
+ *   5. Early payload — Page.addScriptToEvaluateOnNewDocument for pre-load injection
+ *   6. adoptedStyleSheets — CSSStyleSheet API with <style> fallback
+ *   7. Watch mode — persistent daemon with target discovery, reconnection
+ */
+
 const fs = require('fs');
 const path = require('path');
+const http = require('http');
+const WebSocket = require('ws');
+const crypto = require('crypto');
 
-// Token → selector key mapping (mirrors tools/sync-runtime-assets.mjs)
-const TOKEN_MAP = {
-  '__DREAM_SELECTOR_SHELL_MAIN__':        'shell-main',
-  '__DREAM_SELECTOR_LEFT_PANEL__':        'left-panel',
-  '__DREAM_SELECTOR_HEADER_TINT__':       'header-tint',
-  '__DREAM_SELECTOR_COMPOSER_CHROME__':   'composer-chrome',
-  '__DREAM_SELECTOR_HOME_ROUTE__':        'home-route',
-  '__DREAM_SELECTOR_HOME_SUGGESTIONS__':  'home-suggestions',
-  '__DREAM_SELECTOR_MARKDOWN__':          'markdown',
-  '__DREAM_SELECTOR_MESSAGE__':           'message',
-  '__DREAM_SELECTOR_CODE_BLOCK__':        'code-block',
-  '__DREAM_SELECTOR_SEND_BUTTON__':       'send-button',
-};
+const LOOPBACK = new Set(['127.0.0.1', 'localhost', '[::1]', '::1']);
+const SELECTORS_PATH = path.join(__dirname, '..', '..', 'tools', 'selectors.json');
+const CSS_COMPILED_PATH = path.join(__dirname, '..', '..', 'runtime', 'dream-skin-compiled.css');
+const INJECT_COMPILED_PATH = path.join(__dirname, '..', '..', 'runtime', 'renderer-inject-compiled.js');
 
-const SELECTORS = {
-  'shell-main':       'main, [role="main"], [class*="content"]',
-  'left-panel':       'aside, nav, [class*="sidebar"], [class*="Sidebar"], [class*="nav-"], [class*="Navigation"]',
-  'header-tint':      'header, [class*="header"], [class*="Header"], [class*="top-bar"], [class*="TopBar"]',
-  'composer-chrome':  '[contenteditable="true"], [role="textbox"], [class*="composer"], [class*="Composer"], [class*="input"], textarea',
-  'home-route':       '[class*="home"], [class*="Home"], [class*="welcome"], [class*="Welcome"]',
-  'home-suggestions': '[class*="suggestion"], [class*="Suggestion"], [class*="starter"], [class*="Starter"]',
-  'markdown':         '[class*="markdown"], [class*="Markdown"], .markdown-body, [class*="prose"], article',
-  'message':          '[class*="message"], [class*="Message"], [class*="chat-message"], [class*="ChatMessage"]',
-  'code-block':       'pre, code, [class*="code"], [class*="Code"], pre[class*="language-"]',
-  'send-button':      '[class*="send"], [class*="Submit"], [class*="submit"], button[type="submit"]',
-};
+// ── Browser Identity Anchor ────────────────────────────────────────────────
 
 /**
- * CDP-based CSS injector for Electron apps.
- *
- * Architecture:
- *   1. Injects COMPILED CSS (dream-skin-compiled.css + theme CSS) via CSS.addStyleSheet
- *      — this is the primary styling layer
- *   2. Injects renderer-inject.js via Runtime.evaluate (chunked) for dynamic features
- *      — image analysis, adaptive palette, shell detection
- *   3. Passes theme metadata via window.__dreamSkinThemeMeta__
- *   4. Large background images stored in sessionStorage to avoid expression limits
+ * A dedicated browser-level WebSocket that:
+ * - Stays open for the entire session lifetime
+ * - Detects browser identity changes (port hijacking)
+ * - Closing this anchor stops the injector (security)
  */
-class CDPInjector {
-  constructor(port) {
-    this.port = port;
-    this.client = null;
-    this.attachedSessions = new Map();
-    this.themeCSS = '';
-    this.themeMeta = null;
-    this.reconnectAttempts = 0;
-    this.maxReconnectAttempts = 10;
-    this.reconnectTimer = null;
-    this.injectionCallbacks = [];
-    this._domContentHandler = null;
-    this._targetCreatedHandler = null;
-    this._frameNavigatedHandler = null;
-    this._disconnected = false;
-    this._injectorCode = this._loadInjectorScript();
+class BrowserIdentityAnchor {
+  constructor(cdpUrl, browserId) {
+    this.cdpUrl = cdpUrl;
+    this.browserId = browserId;
+    this.ws = null;
+    this.closed = false;
+    this.onClose = null;
+    this._commandId = 0;
+    this._pending = new Map();
+    this._msgQueue = [];
   }
 
-  _loadInjectorScript() {
-    const injectorPath = path.join(__dirname, '..', '..', '..', 'runtime', 'renderer-inject.js');
-    try {
-      return fs.readFileSync(injectorPath, 'utf-8');
-    } catch (e) {
-      console.warn('[CDPInjector] renderer-inject.js not found');
-      return null;
-    }
+  open() {
+    return new Promise((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        reject(new Error('BrowserIdentityAnchor: open timeout'));
+      }, 8000);
+
+      this.ws = new WebSocket(this.cdpUrl, { handshakeTimeout: 5000 });
+
+      this.ws.on('open', () => {
+        clearTimeout(timeout);
+        this.ws.on('message', (event) => this._onMessage(event));
+        this.ws.on('error', () => this._handleClose('error'));
+        this.ws.on('close', () => this._handleClose('close'));
+        resolve();
+      });
+
+      this.ws.on('error', (err) => {
+        clearTimeout(timeout);
+        reject(new Error('BrowserIdentityAnchor: WS open failed: ' + err.message));
+      });
+    });
   }
 
-  _loadSkinCSS() {
-    // Try compiled first, fall back to source with runtime token resolution
-    const compiledPath = path.join(__dirname, '..', '..', '..', 'runtime', 'dream-skin-compiled.css');
-    const sourcePath = path.join(__dirname, '..', '..', '..', 'runtime', 'dream-skin.css');
-
-    // Prefer compiled (tokens already replaced at build time)
-    if (fs.existsSync(compiledPath)) {
-      try {
-        return fs.readFileSync(compiledPath, 'utf-8');
-      } catch (_) {}
-    }
-
-    // Fall back to source — replace tokens at runtime using pre-defined selectors
+  _onMessage(event) {
     try {
-      let css = fs.readFileSync(sourcePath, 'utf-8');
-      for (const [token, key] of Object.entries(TOKEN_MAP)) {
-        const selector = SELECTORS[key] || '*';
-        css = css.split(token).join(selector);
+      const msg = JSON.parse(event.data.toString());
+      if (msg.id) {
+        const waiter = this._pending.get(msg.id);
+        if (waiter) {
+          clearTimeout(waiter.timer);
+          this._pending.delete(msg.id);
+          if (msg.error) waiter.reject(new Error(`${msg.error.message} (${msg.error.code})`));
+          else waiter.resolve(msg.result);
+        }
       }
-      return css;
-    } catch (e) {
-      console.warn('[CDPInjector] Skin CSS not found:', e.message);
-      return null;
+    } catch (e) { /* ignore */ }
+  }
+
+  _handleClose(reason) {
+    if (this.closed) return;
+    this.closed = true;
+    this._drainRejectAll();
+    if (this.onClose) this.onClose(reason);
+  }
+
+  send(method, params = {}) {
+    if (this.closed || !this.ws) return Promise.reject(new Error('Anchor closed'));
+    return new Promise((resolve, reject) => {
+      const id = ++this._commandId;
+      const timer = setTimeout(() => {
+        this._pending.delete(id);
+        reject(new Error(`Anchor command timed out: ${method}`));
+      }, 15000);
+      this._pending.set(id, { resolve, reject, timer });
+      try { this.ws.send(JSON.stringify({ id, method, params })); }
+      catch (err) { clearTimeout(timer); this._pending.delete(id); reject(err); }
+    });
+  }
+
+  _drainRejectAll() {
+    for (const [, waiter] of this._pending) {
+      clearTimeout(waiter.timer);
+      waiter.reject(new Error('BrowserIdentityAnchor closed'));
+    }
+    this._pending.clear();
+  }
+
+  close() {
+    this.closed = true;
+    this.onClose = null;
+    this._drainRejectAll();
+    if (this.ws) {
+      try { this.ws.close(); } catch (_) {}
+      this.ws = null;
     }
   }
+}
+
+// ── CdpSession ─────────────────────────────────────────────────────────────
+
+/**
+ * A per-page CDP session with its own WebSocket.
+ * Handles message routing, timeout, and cleanup.
+ */
+class CdpSession {
+  constructor(wsUrl, targetId) {
+    this.wsUrl = wsUrl;
+    this.targetId = targetId;
+    this.ws = null;
+    this.closed = false;
+    this._commandId = 0;
+    this._pending = new Map();
+    this._listeners = new Map();
+    this.onClose = null;
+    this.styleSheetId = null;
+    this.earlyPayloadId = null;
+    this.probeResult = null;
+    this.failureCount = 0;
+    this.lastFailure = 0;
+    this.backoffMs = 0;
+  }
+
+  async open() {
+    return new Promise((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        reject(new Error(`CdpSession open timeout for ${this.targetId.substring(0, 8)}`));
+      }, 8000);
+
+      this.ws = new WebSocket(this.wsUrl, { handshakeTimeout: 5000 });
+
+      this.ws.on('open', () => {
+        clearTimeout(timeout);
+        this.ws.on('message', (event) => this._onMessage(event));
+        this.ws.on('error', () => this._handleClose('error'));
+        this.ws.on('close', () => this._handleClose('close'));
+        resolve();
+      });
+
+      this.ws.on('error', (err) => {
+        clearTimeout(timeout);
+        reject(new Error(`CdpSession WS open failed: ${err.message}`));
+      });
+    });
+  }
+
+  _onMessage(event) {
+    try {
+      const msg = JSON.parse(event.data.toString());
+      if (msg.id) {
+        const waiter = this._pending.get(msg.id);
+        if (waiter) {
+          clearTimeout(waiter.timer);
+          this._pending.delete(msg.id);
+          if (msg.error) waiter.reject(new Error(`${msg.error.message} (${msg.error.code})`));
+          else waiter.resolve(msg.result);
+        }
+      } else {
+        const listeners = this._listeners.get(msg.method) || [];
+        for (const fn of listeners) fn(msg.params || {});
+      }
+    } catch (e) { /* ignore */ }
+  }
+
+  _handleClose(reason) {
+    if (this.closed) return;
+    this.closed = true;
+    this._drainRejectAll();
+    if (this.onClose) this.onClose(reason);
+  }
+
+  send(method, params = {}) {
+    if (this.closed || !this.ws) return Promise.reject(new Error('Session closed'));
+    return new Promise((resolve, reject) => {
+      const id = ++this._commandId;
+      const timer = setTimeout(() => {
+        this._pending.delete(id);
+        reject(new Error(`Session command timed out: ${method}`));
+      }, 15000);
+      this._pending.set(id, { resolve, reject, timer });
+      try { this.ws.send(JSON.stringify({ id, method, params })); }
+      catch (err) { clearTimeout(timer); this._pending.delete(id); reject(err); }
+    });
+  }
+
+  on(method, listener) {
+    const list = this._listeners.get(method) || [];
+    list.push(listener);
+    this._listeners.set(method, list);
+    return () => {
+      const l = this._listeners.get(method) || [];
+      const idx = l.indexOf(listener);
+      if (idx >= 0) l.splice(idx, 1);
+    };
+  }
+
+  _drainRejectAll() {
+    for (const [, waiter] of this._pending) {
+      clearTimeout(waiter.timer);
+      waiter.reject(new Error('Session closed'));
+    }
+    this._pending.clear();
+  }
+
+  async close() {
+    this.closed = true;
+    this.onClose = null;
+    this._drainRejectAll();
+    if (this.ws) {
+      try { this.ws.close(); } catch (_) {}
+      this.ws = null;
+    }
+  }
+}
+
+// ── Payload Assembly ───────────────────────────────────────────────────────
+
+/**
+ * Assembles the complete injection payload by combining:
+ * - Compiled CSS (from dream-skin-compiled.css)
+ * - Theme CSS (from theme engine)
+ * - Image analysis
+ * - Theme config (colors, art settings, text)
+ * - Renderer inject template (from renderer-inject-compiled.js)
+ *
+ * Replaces placeholder tokens with actual values.
+ */
+class PayloadAssembler {
+  constructor(rootDir) {
+    this.rootDir = rootDir;
+    this.compiledCSS = null;
+    this.injectTemplate = null;
+    this.selectors = {};
+    this.loaded = false;
+  }
+
+  async ensureLoaded() {
+    if (this.loaded) return;
+    this._loadSelectors();
+    this._loadCSS();
+    this._loadTemplate();
+    this.loaded = true;
+  }
+
+  _loadSelectors() {
+    try {
+      const contract = JSON.parse(fs.readFileSync(SELECTORS_PATH, 'utf-8'));
+      for (const s of contract.selectors) this.selectors[s.key] = s.selector;
+    } catch (e) {
+      console.warn('[PayloadAssembler] selectors.json not found, using defaults');
+    }
+  }
+
+  _loadCSS() {
+    try {
+      this.compiledCSS = fs.readFileSync(CSS_COMPILED_PATH, 'utf-8');
+    } catch (e) {
+      console.warn('[PayloadAssembler] compiled CSS not found');
+      this.compiledCSS = '';
+    }
+  }
+
+  _loadTemplate() {
+    try {
+      this.injectTemplate = fs.readFileSync(INJECT_COMPILED_PATH, 'utf-8');
+    } catch (e) {
+      console.warn('[PayloadAssembler] compiled injector not found');
+      this.injectTemplate = '';
+    }
+  }
+
+  async assemble(themeCSS, themeConfig, artDataUrl) {
+    await this.ensureLoaded();
+    if (!this.injectTemplate) {
+      throw new Error('PayloadAssembler: injector template not loaded');
+    }
+
+    const cssJson = JSON.stringify(this.compiledCSS + '\n\n' + (themeCSS || ''));
+    const artJson = JSON.stringify(artDataUrl || '');
+    const themeJson = JSON.stringify(themeConfig || {});
+
+    const styleRevision = crypto.createHash('sha256')
+      .update(this.compiledCSS + '\n\n' + (themeCSS || ''), 'utf-8')
+      .digest('hex').slice(0, 20);
+
+    const payloadRevision = crypto.createHash('sha256')
+      .update(JSON.stringify(SKIN_VERSION) + cssJson + artJson + themeJson, 'utf-8')
+      .digest('hex').slice(0, 20);
+
+    let payload = this.injectTemplate;
+
+    // Replace runtime placeholders
+    const replacements = {
+      '__DREAM_SKIN_CSS_JSON__': cssJson,
+      '__DREAM_SKIN_ART_JSON__': artJson,
+      '__DREAM_SKIN_THEME_JSON__': themeJson,
+      '__DREAM_SKIN_PAYLOAD_REVISION_JSON__': JSON.stringify(payloadRevision),
+    };
+
+    for (const [token, value] of Object.entries(replacements)) {
+      payload = payload.split(token).join(value);
+    }
+
+    return {
+      payload,
+      styleRevision,
+      payloadRevision,
+      cssLength: cssJson.length,
+    };
+  }
+}
+
+const SKIN_VERSION = '1.3.5';
+
+// ── Probe Session ──────────────────────────────────────────────────────────
+
+/**
+ * Probes a target to verify it's actually Claude Desktop.
+ * Evaluates a marker detection script in the renderer.
+ */
+function probeExpression() {
+  return `(() => {
+    const markers = {
+      shell: Boolean(document.querySelector('main, [role="main"], [class*="content"]')),
+      sidebar: Boolean(document.querySelector('aside, nav, [class*="sidebar"], [class*="Navigation"]')),
+      header: Boolean(document.querySelector('header, [class*="header"]')),
+      composer: Boolean(document.querySelector('[contenteditable="true"], [role="textbox"], [class*="composer"], textarea')),
+      main: Boolean(document.querySelector('[class*="home"], [class*="Welcome"], [role="main"]:has(*)')),
+    };
+    return {
+      markers,
+      claude: location.protocol === 'app:' &&
+        ((markers.shell && (markers.sidebar || (markers.header && markers.composer))) || markers.main),
+      protocol: location.protocol,
+      title: typeof document.title === 'string' ? document.title.substring(0, 80) : '',
+    };
+  })()`;
+}
+
+async function probeSession(session) {
+  try {
+    const result = await session.send('Runtime.evaluate', {
+      expression: probeExpression(),
+      returnByValue: true,
+      timeout: 8000,
+    });
+    if (result.exceptionDetails) {
+      console.warn('[probe] Exception during probe:', result.exceptionDetails.text?.substring(0, 200));
+      return null;
+    }
+    if (result.result && result.result.value) {
+      const data = typeof result.result.value === 'string'
+        ? JSON.parse(result.result.value) : result.result.value;
+      return data.claude ? data : null;
+    }
+    return null;
+  } catch (e) {
+    return null;
+  }
+}
+
+// ── CDP URL Validation ─────────────────────────────────────────────────────
+
+function validatedDebuggerUrl(raw, expectedBrowserId) {
+  if (!raw || typeof raw !== 'string') return null;
+  let parsed;
+  try { parsed = new URL(raw); }
+  catch (_) { return null; }
+
+  if (parsed.protocol !== 'ws:' && parsed.protocol !== 'wss:') return null;
+  if (!LOOPBACK.has(parsed.hostname)) return null;
+  if (!/^\/devtools\/(?:page|browser)\/[A-Za-z0-9._-]{1,200}$/.test(parsed.pathname)) return null;
+  return parsed.toString();
+}
+
+function browserIdFromVersion(version) {
+  if (!version || !version.Browser) return null;
+  const match = version.Browser.match(/DevTools\s+(.+?)(?:\s+\d|$)/);
+  if (match) return match[1].trim();
+  if (version.webSocketDebuggerUrl) {
+    try {
+      const url = new URL(version.webSocketDebuggerUrl);
+      const m = url.pathname.match(/^\/devtools\/browser\/(.+)$/);
+      if (m) return m[1];
+    } catch (_) {}
+  }
+  return null;
+}
+
+function isValidCdpPageTarget(target) {
+  if (!target || target.type !== 'page') return false;
+  if (target.url && target.url.startsWith('devtools://')) return false;
+  if (target.url && target.url.startsWith('chrome://')) return false;
+  if (target.url && !target.url.startsWith('app://') && !target.url.startsWith('http')) return false;
+  return true;
+}
+
+// ── Early Payload ──────────────────────────────────────────────────────────
+
+/**
+ * Registers a script to execute before any page scripts load.
+ * Uses Page.addScriptToEvaluateOnNewDocument.
+ */
+async function registerEarlyPayload(session, source, sourceName, scriptId) {
+  try {
+    const result = await session.send('Page.addScriptToEvaluateOnNewDocument', {
+      source,
+      worldName: 'dreamSkin',
+    });
+    return result.identifier || null;
+  } catch (e) {
+    console.warn(`[early-payload] Failed to register ${sourceName}: ${e.message}`);
+    return null;
+  }
+}
+
+async function removeEarlyPayload(session, identifier) {
+  if (!identifier || !session || session.closed) return;
+  try {
+    await session.send('Page.removeScriptToEvaluateOnNewDocument', { identifier });
+  } catch (e) { /* ignore */ }
+}
+
+// ── Main CDP Injector ──────────────────────────────────────────────────────
+
+class CDPInjector {
+  constructor(port, options = {}) {
+    this.port = port;
+    this.anchor = null;
+    this.browserId = null;
+    this.expectedBrowserId = options.expectedBrowserId || null;
+    this.sessions = new Map(); // targetId → CdpSession
+    this.themeCSS = '';
+    this.themeConfig = null;
+    this.artDataUrl = null;
+    this._disconnected = false;
+    this._watchMode = options.watchMode || false;
+    this._pauseFile = options.pauseFile || null;
+    this._themeDir = options.themeDir || null;
+    this._strongThemeAuditMs = options.strongThemeAuditMs || 30000;
+    this._onInjection = null;
+    this._onRemove = null;
+
+    // Payload assembly
+    this.payloadAssembler = new PayloadAssembler(path.join(__dirname, '..', '..'));
+
+    // Runtime
+    this._reconnectAttempts = 0;
+    this.maxReconnectAttempts = 10;
+    this._watchTimer = null;
+    this._auditTimer = null;
+    this._lastPayloadRevision = null;
+  }
+
+  // ── Connection ──────────────────────────────────────────────────────────
 
   async connect() {
     this._disconnected = false;
+    this._reconnectAttempts = 0;
+
+    // Get browser version and ID
+    const version = await this._httpGet('/json/version');
+    const rawWsUrl = validatedDebuggerUrl(version.webSocketDebuggerUrl, this.expectedBrowserId);
+    if (!rawWsUrl) throw new Error('Invalid CDP browser URL');
+
+    const extractedId = browserIdFromVersion(version);
+    if (this.expectedBrowserId && extractedId !== this.expectedBrowserId) {
+      throw new Error(`Browser ID mismatch: expected ${this.expectedBrowserId}, got ${extractedId}`);
+    }
+    this.browserId = extractedId;
+
+    // Open browser identity anchor
+    this.anchor = new BrowserIdentityAnchor(rawWsUrl, this.browserId);
+    this.anchor.onClose = () => this._handleAnchorClose();
 
     try {
-      this.client = await CDP({ port: this.port });
+      await this.anchor.open();
     } catch (e) {
-      throw new Error(`Cannot connect to CDP on port ${this.port}: ${e.message}`);
+      throw new Error(`Failed to open CDP browser anchor: ${e.message}`);
     }
 
-    const { Target, Page, Runtime } = this.client;
-    await Target.enable();
-    await Page.enable();
-    await Runtime.enable();
+    // Enable browser-level domains
+    try { await this.anchor.send('Target.enable'); } catch (_) {}
+    try { await this.anchor.send('Page.enable'); } catch (_) {}
+    try { await this.anchor.send('Runtime.enable'); } catch (_) {}
 
-    // Monitor new pages/targets
-    this._targetCreatedHandler = async (event) => {
-      if (event.targetInfo.type === 'page') {
-        const url = event.targetInfo.url;
-        if (url.startsWith('devtools://')) return;
-        console.log(`[CDPInjector] New page: ${url}`);
-        setTimeout(() => this.injectIntoTarget(event.targetInfo.targetId), 500);
+    // Monitor new targets at browser level
+    this.anchor.on('Target.targetCreated', async (params) => {
+      if (params.targetInfo.type === 'page' && !params.targetInfo.url.startsWith('devtools://')) {
+        const delay = Math.min(500 + this.sessions.size * 200, 2000);
+        setTimeout(() => this._tryTarget(params.targetInfo), delay);
       }
-    };
-    this.client.on('Target.targetCreated', this._targetCreatedHandler);
+    });
 
-    // Re-inject when page navigates
-    this._frameNavigatedHandler = async (event) => {
-      const url = event.frame.url;
-      if (url.startsWith('chrome://') || url === 'chrome://newtab/') return;
-      setTimeout(() => this.injectIntoTarget(event.frame.id), 300);
-    };
-    this.client.on('Page.frameNavigated', this._frameNavigatedHandler);
+    this.anchor.on('Target.targetDestroyed', (params) => {
+      this._removeTarget(params.targetId);
+    });
 
-    // Re-inject on DOM content loaded
-    this._domContentHandler = async () => {
-      setTimeout(() => this.refreshAllInjections(), 200);
-    };
-    this.client.on('Page.domContentEventFired', this._domContentHandler);
+    this.anchor.on('Page.frameNavigated', async (params) => {
+      if (params.frame.url && params.frame.url.startsWith('chrome://')) return;
+      const targetId = params.frame.parentId ? undefined : params.frame.id;
+      if (targetId) {
+        const delay = Math.min(300 + this.sessions.size * 100, 1500);
+        setTimeout(() => this._tryTargetById(targetId), delay);
+      }
+    });
 
-    await this.injectIntoExistingPages();
-    this.reconnectAttempts = 0;
-    console.log(`[CDPInjector] Connected to port ${this.port}`);
-  }
+    // Check if Claude is paused
+    const paused = this._checkPaused();
 
-  async injectIntoExistingPages() {
-    const { Target } = this.client;
-    let { targetInfos } = await Target.getTargets();
+    // Connect to existing pages
+    const existing = await this._httpGet('/json/list');
     let injected = 0;
-
-    for (const target of targetInfos) {
-      if (target.type === 'page' &&
-          !target.url.startsWith('devtools://') &&
-          target.url !== 'chrome://newtab/') {
-        await this.injectIntoTarget(target.targetId);
+    for (const target of existing) {
+      if (isValidCdpPageTarget(target)) {
+        await this._tryTarget(target);
         injected++;
       }
     }
-    console.log(`[CDPInjector] Initial injection into ${injected} page(s)`);
-    return injected;
+
+    // Start watch mode timers
+    if (this._watchMode) {
+      this._startWatchTimers(paused);
+    }
+
+    console.log(`[CDPInjector] Connected to port ${this.port} (browser: ${this.browserId}, ${injected} targets)`);
   }
 
-  async injectIntoTarget(targetId) {
-    if (this._disconnected) return;
+  async _handleAnchorClose() {
+    console.warn('[CDPInjector] BrowserIdentityAnchor closed — injector stopping');
+    this._disconnected = true;
+    this._cleanup();
+  }
+
+  _checkPaused() {
+    try {
+      if (this._pauseFile && fs.existsSync(this._pauseFile)) return true;
+    } catch (_) {}
+    return false;
+  }
+
+  // ── Target Management ───────────────────────────────────────────────────
+
+  async _tryTarget(targetInfo) {
+    const targetId = targetInfo.targetId;
+    if (!targetId || this.sessions.has(targetId)) return;
+
+    // Check backoff
+    const now = Date.now();
+    const session = this.sessions.get(targetId);
+    if (session && session.backoffMs > 0 && now - session.lastFailure < session.backoffMs) {
+      return;
+    }
+
+    // Validate URL
+    if (!validatedDebuggerUrl(targetInfo.webSocketDebuggerUrl)) return;
+
+    await this._tryTargetById(targetId, targetInfo);
+  }
+
+  async _tryTargetById(targetId, targetInfo) {
+    if (this.sessions.has(targetId) && this.sessions.get(targetId).ws) {
+      // Session exists, just probe
+      const existing = this.sessions.get(targetId);
+      if (existing && !existing.closed && existing.probeResult) {
+        await this._maybeReinject(existing, this._checkPaused());
+      }
+      return;
+    }
+
+    // Get target info from browser if not provided
+    if (!targetInfo) {
+      try {
+        const targets = await this._httpGet('/json/list');
+        targetInfo = targets.find(t => t.targetId === targetId);
+      } catch (_) { return; }
+    }
+    if (!targetInfo || !isValidCdpPageTarget(targetInfo)) return;
+
+    const paused = this._checkPaused();
+    const wsUrl = validatedDebuggerUrl(targetInfo.webSocketDebuggerUrl);
+    if (!wsUrl) return;
 
     try {
-      const { sessionId } = await this.client.Target.attachToTarget({
-        targetId,
-        flatten: true,
-      });
+      const session = new CdpSession(wsUrl, targetId);
+      session.onClose = () => this._removeTarget(targetId);
+      await session.open();
 
-      const pageClient = await CDP({ target: `${sessionId}` });
+      // Probe: verify this is Claude Desktop
+      const probe = await probeSession(session);
+      session.probeResult = probe;
 
-      await pageClient.CSS.enable();
-      await pageClient.Runtime.enable();
+      if (!probe) {
+        session.failureCount++;
+        session.lastFailure = Date.now();
+        session.backoffMs = Math.min(5000 * Math.pow(1.5, session.failureCount), 30000);
+        await session.close();
+        console.log(`[CDPInjector] Probed ${targetId.substring(0, 8)} — not Claude Desktop, backoff ${Math.round(session.backoffMs / 1000)}s`);
+        return;
+      }
+
+      // Reset failure tracking on success
+      session.failureCount = 0;
+      session.backoffMs = 0;
+
+      this.sessions.set(targetId, session);
+
+      if (paused) {
+        await this._removeFromSession(session);
+      } else {
+        await this._applyToSession(session);
+      }
+
+      console.log(`[CDPInjector] Session ${targetId.substring(0, 8)} — probe OK, ${paused ? 'paused' : 'applied'}`);
+    } catch (e) {
+      if (!e.message.includes('closed') && !e.message.includes('timeout')) {
+        console.warn(`[CDPInjector] Target ${targetId.substring(0, 8)} error: ${e.message}`);
+      }
+    }
+  }
+
+  async _maybeReinject(session, paused) {
+    if (session.probeResult && !paused && !session.styleSheetId) {
+      await this._applyToSession(session);
+    }
+  }
+
+  _removeTarget(targetId) {
+    const session = this.sessions.get(targetId);
+    if (session) {
+      this._removeFromSession(session).catch(() => {});
+      this.sessions.delete(targetId);
+    }
+  }
+
+  // ── Injection ───────────────────────────────────────────────────────────
+
+  async _applyToSession(session) {
+    if (!session || session.closed || this._disconnected) return;
+
+    try {
+      // Enable domains
+      try { await session.send('CSS.enable'); } catch (_) {}
+      try { await session.send('Page.enable'); } catch (_) {}
+      try { await session.send('Runtime.enable'); } catch (_) {}
+
+      // Assemble payload
+      const { payload, payloadRevision } = await this.payloadAssembler.assemble(
+        this.themeCSS,
+        this.themeConfig,
+        this.artDataUrl
+      );
 
       // Remove previous injection
-      const existing = this.attachedSessions.get(targetId);
-      if (existing) {
-        try { await pageClient.CSS.removeStyleSheet({ styleSheetId: existing.styleSheetId }); } catch (_) {}
-        try { await existing.pageClient.close(); } catch (_) {}
-      }
+      await this._removeFromSession(session, true);
 
-      // Step 1: Inject full CSS via CDP (skin + theme overrides)
-      const skinCSS = this._loadSkinCSS();
-      const fullCSS = skinCSS ? skinCSS + '\n\n' + this.themeCSS + '\n' : this.themeCSS;
-      let styleSheetId = null;
-      if (fullCSS) {
+      // Register early payload (injects before page scripts load)
+      if (payload) {
         try {
-          const result = await pageClient.CSS.addStyleSheet({
-            source: fullCSS,
-            title: 'CDP-DreamSkin',
-          });
-          styleSheetId = result.styleSheetId;
-        } catch (e) {
-          console.warn(`[CDPInjector] CSS injection warning: ${e.message}`);
-        }
-      }
-
-      // Step 2: Inject renderer engine (JS) — the script IS the IIFE itself,
-      // so we inject the whole thing in one go. If it's too large (>65KB),
-      // we fall back to creating a blob URL approach.
-      if (this._injectorCode) {
-        const code = this._injectorCode;
-        try {
-          if (code.length <= 60000) {
-            // Small enough for single expression
-            await pageClient.Runtime.evaluate({
-              expression: code,
-              returnByValue: true,
-              timeout: 15000,
-            });
-          } else {
-            // Large script: inject via script element creation
-            await pageClient.Runtime.evaluate({
-              expression: `
-                (function() {
-                  if (window.__dreamSkinInjected) return 'already_present';
-                  window.__dreamSkinInjected = true;
-                  var s = document.createElement('script');
-                  s.textContent = ${JSON.stringify(code)};
-                  document.head.appendChild(s);
-                  s.remove();
-                  return 'injected';
-                })()
-              `,
-              returnByValue: true,
-              timeout: 15000,
-            });
+          session.earlyPayloadId = await registerEarlyPayload(session, payload, 'dream-skin', payloadRevision);
+          if (session.earlyPayloadId) {
+            console.log(`[CDPInjector] Early payload registered for ${session.targetId.substring(0, 8)}`);
           }
         } catch (e) {
-          console.warn(`[CDPInjector] JS injection error: ${e.message}`);
+          console.warn(`[CDPInjector] Early payload failed: ${e.message}`);
         }
-      }
 
-      // Step 3: Pass theme metadata and trigger renderer
-      if (this.themeMeta) {
-        const metaForJS = { ...this.themeMeta };
+        // Also inject now (the page is already loaded)
+        await this._injectPayload(session, payload);
 
-        // Large base64 → sessionStorage to avoid expression length limits
-        if (this.themeMeta.backgroundBase64 && this.themeMeta.backgroundBase64.length > 10000) {
+        // Set up fallback: re-inject on load events
+        const onLoad = async () => {
+          if (session.closed) return;
           try {
-            await pageClient.Runtime.evaluate({
-              expression: `(() => { try { sessionStorage.setItem('__dreamSkin_bg', ${JSON.stringify(this.themeMeta.backgroundBase64)}); } catch(e) {} })()`,
-              returnByValue: true,
-            });
+            await this._injectPayload(session, payload);
           } catch (_) {}
-          metaForJS.backgroundBase64 = null;
-          metaForJS._bgFromStorage = true;
-        }
-
-        // Store meta on window
-        try {
-          await pageClient.Runtime.evaluate({
-            expression: `(() => { try { window.__dreamSkinThemeMeta__ = ${JSON.stringify(metaForJS)}; } catch(e) {} })()`,
-            returnByValue: true,
-          });
-        } catch (e) {
-          console.warn(`[CDPInjector] Meta injection warning: ${e.message}`);
-        }
-
-        // Trigger theme application
-        try {
-          await pageClient.Runtime.evaluate({
-            expression: `(() => { try { if (window.__dreamSkinApi) window.__dreamSkinApi.apply(window.__dreamSkinThemeMeta__); } catch(e) {} })()`,
-            returnByValue: true,
-          });
-        } catch (_) {}
+        };
+        const unlistenLoad = session.on('Page.loadEventFired', onLoad);
+        const unlistenDom = session.on('Page.domContentEventFired', async () => {
+          setTimeout(onLoad, 300);
+        });
+        session._unlistenLoad = unlistenLoad;
+        session._unlistenDom = unlistenDom;
       }
 
-      this.attachedSessions.set(targetId, {
-        sessionId,
-        pageClient,
-        styleSheetId,
+      // Notify
+      const result = { targetId: session.targetId, action: 'inject', styleSheetId: session.styleSheetId };
+      if (this._onInjection) this._onInjection(result);
+
+    } catch (e) {
+      if (!e.message.includes('closed')) {
+        console.warn(`[CDPInjector] Inject ${session.targetId.substring(0, 8)} error: ${e.message}`);
+      }
+    }
+  }
+
+  async _injectPayload(session, payload) {
+    if (!payload || session.closed) return;
+
+    // For payloads > 60KB, use blob URL injection
+    if (payload.length > 60000) {
+      const blobExpr = `
+        (function() {
+          if (window.__DREAM_SKIN_EARLY_APPLIED__) return 'already_present';
+          window.__DREAM_SKIN_EARLY_APPLIED__ = true;
+          try {
+            var b = new Blob([${JSON.stringify(payload)}], { type: 'application/javascript' });
+            var u = URL.createObjectURL(b);
+            var s = document.createElement('script');
+            s.src = u;
+            s.onload = function() { URL.revokeObjectURL(u); };
+            (document.head || document.documentElement).appendChild(s);
+          } catch(e) { throw e; }
+          return 'injected';
+        })()
+      `;
+      await session.send('Runtime.evaluate', {
+        expression: blobExpr,
+        returnByValue: true,
+        timeout: 20000,
       });
-
-      const cbResult = { targetId, action: 'inject', styleSheetId };
-      for (const cb of this.injectionCallbacks) cb(cbResult);
-
-    } catch (e) {
-      this.attachedSessions.delete(targetId);
-      if (!e.message.includes('No target with id') && !e.message.includes('Session closed')) {
-        console.warn(`[CDPInjector] Inject failed for ${targetId.substring(0, 8)}: ${e.message}`);
-      }
+    } else {
+      // Small enough for direct evaluation
+      const evalExpr = `
+        (function() {
+          if (window.__DREAM_SKIN_EARLY_APPLIED__) return 'already_present';
+          window.__DREAM_SKIN_EARLY_APPLIED__ = true;
+          try { ${payload} } catch(e) { throw e; }
+          return 'injected';
+        })()
+      `;
+      await session.send('Runtime.evaluate', {
+        expression: evalExpr,
+        returnByValue: true,
+        timeout: 15000,
+      });
     }
   }
 
-  async refreshAllInjections() {
-    if (this._disconnected || !this.client) return;
+  async _removeFromSession(session, keepWs = false) {
+    if (!session || session.closed) return;
+
     try {
-      const { Target } = this.client;
-      const { targetInfos } = await Target.getTargets();
-      for (const target of targetInfos) {
-        if (target.type === 'page' &&
-            !target.url.startsWith('devtools://') &&
-            target.url !== 'chrome://newtab/') {
-          await this.injectIntoTarget(target.targetId);
-        }
+      // Remove adopted style sheet
+      if (session.styleSheetId) {
+        try { await session.send('CSS.removeStyleSheet', { styleSheetId: session.styleSheetId }); } catch (_) {}
+        session.styleSheetId = null;
       }
-    } catch (e) {
-      this.reconnectAttempts++;
-      if (this.reconnectAttempts <= this.maxReconnectAttempts) {
-        console.log(`[CDPInjector] Reconnecting (${this.reconnectAttempts}/${this.maxReconnectAttempts})...`);
-        await this._doReconnect();
-      } else {
-        console.error('[CDPInjector] Max reconnect attempts reached.');
-        this._disconnected = true;
+
+      // Remove early payload
+      if (session.earlyPayloadId) {
+        await removeEarlyPayload(session, session.earlyPayloadId);
+        session.earlyPayloadId = null;
       }
+
+      // Remove JS-injected style element via cleanup
+      try {
+        await session.send('Runtime.evaluate', {
+          expression: `
+            (function() {
+              window.__DREAM_SKIN_EARLY_APPLIED__ = false;
+              var el = document.getElementById('codex-dream-skin-style');
+              if (el) el.remove();
+              try {
+                var reg = window.__CODEX_DREAM_SKIN_STYLE_SHEETS__;
+                if (reg) { reg.forEach(function(id) {
+                  try { document.adoptedStyleSheets = document.adoptedStyleSheets.filter(function(s) { return s !== id; }); } catch(e){}
+                }); }
+              } catch(e){}
+              return 'removed';
+            })()
+          `,
+          returnByValue: true,
+          timeout: 5000,
+        });
+      } catch (_) {}
+
+      // Remove fallback listeners
+      if (session._unlistenLoad) session._unlistenLoad();
+      if (session._unlistenDom) session._unlistenDom();
+      session._unlistenLoad = null;
+      session._unlistenDom = null;
+    } catch (_) {}
+
+    if (!keepWs) {
+      await session.close();
     }
   }
 
-  async setTheme(css, themeMeta) {
-    this.themeCSS = css;
-    this.themeMeta = themeMeta || null;
+  // ── Theme Management ────────────────────────────────────────────────────
+
+  async setTheme(css, themeConfig, artDataUrl) {
+    this.themeCSS = css || '';
+    this.themeConfig = themeConfig || null;
+    this.artDataUrl = artDataUrl || null;
     if (this._disconnected) return;
+
     await this.removeAllInjections();
-    if (this.client) {
-      await this.injectIntoExistingPages();
+    if (!this._disconnected) {
+      await this.injectIntoAllSessions();
+    }
+  }
+
+  async injectIntoAllSessions() {
+    const sessions = Array.from(this.sessions.values()).filter(s => !s.closed);
+    for (const session of sessions) {
+      if (session.probeResult && !this._checkPaused()) {
+        await this._applyToSession(session);
+      }
     }
   }
 
   async removeAllInjections() {
-    const removals = [];
-    for (const [targetId, entry] of this.attachedSessions) {
-      removals.push(this._removeFromTarget(targetId, entry));
-    }
+    const sessions = Array.from(this.sessions.values());
+    const removals = sessions.map(s => this._removeFromSession(s));
     await Promise.allSettled(removals);
-    this.attachedSessions.clear();
-  }
-
-  async _removeFromTarget(targetId, entry) {
-    try { if (entry.styleSheetId && entry.pageClient) await entry.pageClient.CSS.removeStyleSheet({ styleSheetId: entry.styleSheetId }); } catch (_) {}
-    try {
-      if (entry.pageClient) {
-        // Clean up JS state too
-        try {
-          await entry.pageClient.Runtime.evaluate({
-            expression: '(() => { try { removeTheme(); } catch(e) {} })()',
-            returnByValue: true,
-          });
-        } catch (_) {}
-        await entry.pageClient.close();
+    for (const session of sessions) {
+      if (!session.closed) {
+        this.sessions.delete(session.targetId);
+        session.close().catch(() => {});
       }
-    } catch (_) {}
+    }
+    this.sessions.clear();
   }
 
   async restoreDefault() {
-    if (this._disconnected || !this.client) return;
+    if (this._disconnected || !this.anchor) return;
     await this.removeAllInjections();
     try {
-      const { Runtime } = this.client;
-      await Runtime.evaluate({
-        expression: this._restoreCode(),
+      await this.anchor.send('Runtime.evaluate', {
+        expression: `
+          (function() {
+            window.__DREAM_SKIN_EARLY_APPLIED__ = false;
+            document.querySelectorAll('style[title="CDP-DreamSkin"], #codex-dream-skin-style').forEach(function(el) { el.remove(); });
+            try { document.adoptedStyleSheets = []; } catch(e){}
+            try {
+              var reg = window.__CODEX_DREAM_SKIN_STYLE_SHEETS__;
+              if (reg) { reg.forEach(function(id) {
+                try { document.adoptedStyleSheets = document.adoptedStyleSheets.filter(function(s) { return s !== id; }); } catch(e){}
+              }); }
+            } catch(e){}
+            return 'restored';
+          })()
+        `,
         returnByValue: true,
+        timeout: 5000,
       });
     } catch (_) {}
   }
 
+  // ── Watch Mode ──────────────────────────────────────────────────────────
+
+  _startWatchTimers(paused) {
+    this._stopWatchTimers();
+
+    // Target discovery: poll for new pages
+    this._watchTimer = setInterval(async () => {
+      if (this._disconnected || this._checkPaused() !== paused) {
+        // State changed, re-evaluate all
+      }
+      try {
+        const targets = await this._httpGet('/json/list');
+        for (const target of targets) {
+          if (isValidCdpPageTarget(target) && !this.sessions.has(target.targetId)) {
+            await this._tryTarget(target);
+          }
+        }
+      } catch (e) {
+        if (e.message.includes('ECONNREFUSED') || e.message.includes('ECONNRESET')) {
+          this._disconnected = true;
+          this._cleanup();
+        }
+      }
+    }, 1200);
+
+    // Strong theme audit
+    this._auditTimer = setInterval(async () => {
+      if (this._disconnected) return;
+      try {
+        const payloadInfo = await this.payloadAssembler.assemble(
+          this.themeCSS,
+          this.themeConfig,
+          this.artDataUrl
+        );
+        if (this._lastPayloadRevision && this._lastPayloadRevision !== payloadInfo.payloadRevision) {
+          console.log('[CDPInjector] Theme changed, re-injecting...');
+          this._lastPayloadRevision = payloadInfo.payloadRevision;
+          await this.injectIntoAllSessions();
+        } else {
+          this._lastPayloadRevision = payloadInfo.payloadRevision;
+        }
+      } catch (_) {}
+    }, this._strongThemeAuditMs);
+  }
+
+  _stopWatchTimers() {
+    if (this._watchTimer) { clearInterval(this._watchTimer); this._watchTimer = null; }
+    if (this._auditTimer) { clearInterval(this._auditTimer); this._auditTimer = null; }
+  }
+
+  // ── Cleanup ─────────────────────────────────────────────────────────────
+
   async disconnect() {
     this._disconnected = true;
-    clearTimeout(this.reconnectTimer);
-    await this.removeAllInjections();
-    if (this.client) {
-      try { await this.client.close(); } catch (_) {}
-      this.client = null;
+    this._stopWatchTimers();
+
+    const sessions = Array.from(this.sessions.values());
+    this.sessions.clear();
+    const closures = sessions.map(s => {
+      if (!s.closed) {
+        this._removeFromSession(s).catch(() => {});
+        return s.close();
+      }
+      return Promise.resolve();
+    });
+    await Promise.allSettled(closures);
+
+    if (this.anchor) {
+      this.anchor.close();
+      this.anchor = null;
     }
+
     console.log('[CDPInjector] Disconnected');
   }
 
+  _cleanup() {
+    this._stopWatchTimers();
+    if (this.anchor) {
+      this.anchor.close();
+      this.anchor = null;
+    }
+    this.sessions.forEach(s => { if (!s.closed) s.close(); });
+    this.sessions.clear();
+  }
+
   onInjection(callback) {
-    this.injectionCallbacks.push(callback);
-    return () => {
-      this.injectionCallbacks = this.injectionCallbacks.filter(cb => cb !== callback);
-    };
+    this._onInjection = callback;
+    return () => { this._onInjection = null; };
   }
 
-  // ── Private ──────────────────────────────────────────────────────────────
+  // ── HTTP Helper ─────────────────────────────────────────────────────────
 
-  async _doReconnect() {
-    try { await this.disconnect(); } catch (_) {}
-    await new Promise(r => setTimeout(r, 2000));
-    try { await this.connect(); } catch (e) {
-      console.warn(`[CDPInjector] Reconnect failed: ${e.message}`);
-    }
-  }
-
-  _restoreCode() {
-    return `
-      (function() {
-        // Remove CSS injected via CDP
-        document.querySelectorAll('style[title="CDP-DreamSkin"], link[title="CDP-DreamSkin"]').forEach(function(el) {
-          el.remove();
+  _httpGet(resource) {
+    return new Promise((resolve, reject) => {
+      http.get(`http://127.0.0.1:${this.port}${resource}`, { timeout: 5000 }, res => {
+        let body = '';
+        res.on('data', d => body += d);
+        res.on('end', () => {
+          try { resolve(JSON.parse(body)); }
+          catch (e) { reject(e); }
         });
-        // Clean up JS state
-        try { removeTheme(); } catch(e) {}
-        try { sessionStorage.removeItem('__dreamSkin_bg'); } catch(e) {}
-        return 'restored';
-      })()
-    `;
-  }
-
-  _chunkCode(code, maxLen) {
-    if (!code || code.length <= maxLen) return [code];
-    const chunks = [];
-    let remaining = code;
-    while (remaining.length > 0) {
-      if (remaining.length <= maxLen) { chunks.push(remaining); break; }
-      let splitAt = remaining.lastIndexOf(';', maxLen);
-      if (splitAt < maxLen * 0.5) splitAt = maxLen;
-      chunks.push(remaining.substring(0, splitAt));
-      remaining = remaining.substring(splitAt);
-    }
-    return chunks;
+      }).on('error', reject);
+    });
   }
 }
 
-module.exports = CDPInjector;
+module.exports = { CDPInjector, probeSession, validatedDebuggerUrl };
