@@ -1,0 +1,14 @@
+﻿/* Internet Angel Pixel Cafe */
+:root {
+  --ds-bg: #0f0e18;
+  --ds-panel: #1a1525;
+  --ds-panel-2: #241e32;
+  --ds-text: #f0e6f6;
+  --ds-muted: #9b8fb0;
+  --ds-accent: #ff45c8;
+  --ds-accent-soft: #ff7ed4;
+  --ds-secondary: #45c6ff;
+  --ds-highlight: #ff6b9d;
+  --ds-line: rgba(255,69,200,.2);
+}
+

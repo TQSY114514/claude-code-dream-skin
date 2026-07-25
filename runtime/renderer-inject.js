@@ -23,6 +23,7 @@
 
   const ROOT_ATTRS = [
     'data-dream-skin','data-dream-shell',
+    'data-dream-style',
     'data-dream-art-wide','data-dream-art-safe','data-dream-task-mode',
     'data-dream-art-safe-area','data-dream-art-task-mode','data-dream-art-aspect',
     'data-dream-art-ready',
@@ -41,6 +42,8 @@
     '--dream-skin-project-label','--dream-skin-brand-subtitle',
     '--dream-skin-status','--dream-skin-quote','--dream-skin-art',
   ];
+
+  const HUE_BINS = 24;
 
   // ── Config ─────────────────────────────────────────────────────────────────
 
@@ -219,7 +222,7 @@
           catch (_) { return resolve(null); }
 
           // Color binning: 24 hue bins weighted by saturation
-          const hueBins = new Float32Array(24);
+          const hueBins = new Float32Array(HUE_BINS);
           let totalSat = 0;
           let satX = 0, satY = 0;
           const pixels = w * h;
@@ -238,7 +241,7 @@
               else h = (4 + (r - g) / (max - min || 1)) * 60;
               if (h < 0) h += 360;
 
-              const bin = Math.floor(h / 15) % 24;
+              const bin = Math.floor(h / (360 / HUE_BINS)) % HUE_BINS;
               hueBins[bin] += s;
               totalSat += s;
               const x = (i / 4) % w;
@@ -651,6 +654,7 @@
     // Brand text
     if (THEME.name && setAttr(html, 'data-dream-skin-name', THEME.name)) state.attrWrites++;
     if (THEME.tagline && setAttr(html, 'data-dream-skin-tagline', THEME.tagline)) state.attrWrites++;
+    if (THEME.style && setAttr(html, 'data-dream-style', THEME.style)) state.attrWrites++;
     if (THEME.projectPrefix && setAttr(html, 'data-dream-skin-project-prefix', THEME.projectPrefix)) state.attrWrites++;
     if (THEME.projectLabel && setAttr(html, 'data-dream-skin-project-label', THEME.projectLabel)) state.attrWrites++;
     if (THEME.brandSubtitle && setAttr(html, 'data-dream-skin-brand-subtitle', THEME.brandSubtitle)) state.attrWrites++;

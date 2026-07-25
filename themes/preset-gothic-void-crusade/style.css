@@ -1,0 +1,14 @@
+﻿/* Gothic Void Crusade */
+:root {
+  --ds-bg: #0d0d0e;
+  --ds-panel: #171513;
+  --ds-panel-2: #211d18;
+  --ds-text: #f3ead7;
+  --ds-muted: #b5a386;
+  --ds-accent: #c8a55a;
+  --ds-accent-soft: #e3c27a;
+  --ds-secondary: #74352e;
+  --ds-highlight: #8a2f27;
+  --ds-line: rgba(200,165,90,.28);
+}
+

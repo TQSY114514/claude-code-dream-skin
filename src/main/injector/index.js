@@ -21,9 +21,9 @@ const WebSocket = require('ws');
 const crypto = require('crypto');
 
 const LOOPBACK = new Set(['127.0.0.1', 'localhost', '[::1]', '::1']);
-const SELECTORS_PATH = path.join(__dirname, '..', '..', 'tools', 'selectors.json');
-const CSS_COMPILED_PATH = path.join(__dirname, '..', '..', 'runtime', 'dream-skin-compiled.css');
-const INJECT_COMPILED_PATH = path.join(__dirname, '..', '..', 'runtime', 'renderer-inject-compiled.js');
+const SELECTORS_PATH = path.join(__dirname, '..', '..', '..', 'tools', 'selectors.json');
+const CSS_COMPILED_PATH = path.join(__dirname, '..', '..', '..', 'runtime', 'dream-skin-compiled.css');
+const INJECT_COMPILED_PATH = path.join(__dirname, '..', '..', '..', 'runtime', 'renderer-inject-compiled.js');
 
 // ── Browser Identity Anchor ────────────────────────────────────────────────
 
