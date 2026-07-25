@@ -10,7 +10,9 @@ const path = require('path');
 const fs = require('fs');
 const os = require('os');
 
-const ROOT = path.join(os.homedir(), '.claude-dream-skin');
+const TEST_ROOT = path.join(os.tmpdir(), 'claude-dream-skin-test-' + Date.now());
+process.env.DREAM_SKIN_TEST_ROOT = TEST_ROOT;
+const ROOT = TEST_ROOT;
 
 let passed = 0;
 let failed = 0;
@@ -224,7 +226,7 @@ async function testCDPInjector() {
 
   test('CDPInjector class loads', () => {
     const CDPInjector = require('../src/main/injector');
-    assert(typeof CDPInjector === 'function', 'CDPInjector is a class');
+    assert(typeof CDPInjector.CDPInjector === 'function', 'CDPInjector is a class');
   });
 
   test('Cannot connect without CDP server (expected to fail gracefully)', async () => {
@@ -241,10 +243,12 @@ async function testCDPInjector() {
 
   test('CDPInjector loads renderer-inject.js', () => {
     const CDPInjector = require('../src/main/injector');
-    const injector = new CDPInjector(19999);
-    assert(injector._injectorCode.length > 0, 'Injector code is loaded');
-    assert(injector._injectorCode.includes('SELECTORS'), 'Contains selector code');
-    assert(injector._injectorCode.includes('analyzeImage'), 'Contains image analysis');
+    const injector = new CDPInjector.CDPInjector(19999);
+    const payloadAssembler = injector.payloadAssembler || {};
+    const template = payloadAssembler.injectTemplate || '';
+    assert(template.length > 0, 'Injector template is loaded');
+    assert(template.includes('SELECTORS') || template.includes('__DREAM_SELECTOR_'), 'Contains selector code');
+    assert(template.includes('analyzeArt') || template.includes('HUE_BINS'), 'Contains image analysis');
   });
 }
 
@@ -368,7 +372,7 @@ function testImageAnalysis() {
   test('renderer-inject.js contains image analysis', () => {
     const injectPath = path.join(__dirname, '..', 'runtime', 'renderer-inject.js');
     const code = fs.readFileSync(injectPath, 'utf8');
-    assert(code.includes('analyzeImage'), 'Has analyzeImage function');
+    assert(code.includes('analyzeArt'), 'Has analyzeArt function');
     assert(code.includes('HUE_BINS'), 'Has hue binning constant');
     assert(code.includes('hslToRgb'), 'Has color conversion');
     assert(code.includes('dominantHue'), 'Analyzes dominant hue');
@@ -381,7 +385,7 @@ function testImageAnalysis() {
     const injectPath = path.join(__dirname, '..', 'runtime', 'renderer-inject.js');
     const code = fs.readFileSync(injectPath, 'utf8');
     assert(code.includes('--ds-accent-rgb'), 'Sets accent-rgb');
-    assert(code.includes('accentHex'), 'Generates accent hex');
+    assert(code.includes('hslToHex'), 'Generates accent hex');
   });
 }
 

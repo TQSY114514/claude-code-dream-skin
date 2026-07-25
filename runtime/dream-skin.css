@@ -937,3 +937,160 @@ html[data-dream-skin="active"] {
   0%, 100% { opacity: 0.4; }
   50% { opacity: 0.9; }
 }
+
+/* ── Choten / Internet Angel Decorative Layer ─────────────────────── */
+[data-dream-skin="active"][data-dream-choten="true"] {
+  --ds-choten-accent: #ff45c8;
+  --ds-choten-secondary: #45c6ff;
+  --ds-choten-bg: #0f0e18;
+  --ds-choten-panel: #1a1525;
+  --ds-choten-text: #f0e6f6;
+  --ds-choten-muted: #9b8fb0;
+}
+
+[data-dream-skin="active"][data-dream-choten="true"] main,
+[data-dream-skin="active"][data-dream-choten="true"] [class*='content'],
+[data-dream-skin="active"][data-dream-choten="true"] [class*='Content'] {
+  overflow: hidden;
+  position: relative;
+}
+
+/* ── Angel Stage (fixed overlay on main content area) ────────────── */
+.ds-angel-stage {
+  position: fixed;
+  pointer-events: none;
+  z-index: 0;
+  overflow: hidden;
+  font-family: 'Courier New', 'Consolas', monospace;
+}
+.ds-angel-stage * {
+  pointer-events: none;
+}
+
+/* ── Angel Halo ──────────────────────────────────────────────────── */
+.ds-angel-halo {
+  position: absolute;
+  width: 60px;
+  height: 20px;
+  border: 2px solid var(--ds-choten-accent, #ff45c8);
+  border-radius: 50%;
+  top: 0;
+  animation: ds-halo-pulse 3s ease-in-out infinite;
+}
+@keyframes ds-halo-pulse {
+  0%, 100% { opacity: 0.6; transform: scaleX(1); }
+  50% { opacity: 1; transform: scaleX(1.15); }
+}
+
+/* ── Live Ticker ─────────────────────────────────────────────────── */
+.ds-angel-live-ticker {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  font-size: 10px;
+  color: var(--ds-choten-accent, #ff45c8);
+  opacity: 0.5;
+  letter-spacing: 1px;
+}
+.ds-angel-live-ticker span {
+  display: inline-block;
+  animation: ds-ticker-scroll 20s linear infinite;
+}
+@keyframes ds-ticker-scroll {
+  0% { transform: translateX(100%); }
+  100% { transform: translateX(-200%); }
+}
+
+/* ── Signal Wave ─────────────────────────────────────────────────── */
+.ds-angel-signal-wave {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  width: 40px;
+  height: 40px;
+  border: 2px solid var(--ds-choten-accent, #ff45c8);
+  border-radius: 50%;
+  opacity: 0.3;
+  animation: ds-signal-ring 2s ease-out infinite;
+}
+@keyframes ds-signal-ring {
+  0% { transform: scale(0.5); opacity: 0.6; }
+  100% { transform: scale(2); opacity: 0; }
+}
+
+/* ── Spark Field (background sparkles) ──────────────────────────── */
+.ds-angel-spark-field i {
+  position: absolute;
+  width: 2px;
+  height: 2px;
+  background: var(--ds-choten-accent, #ff45c8);
+  border-radius: 50%;
+  animation: ds-spark-blink 4.2s steps(2, end) infinite;
+}
+@keyframes ds-spark-blink {
+  0%, 87.9%, 88.4%, 89.6%, 90.1%, 100% { opacity: 0; }
+  88%, 88.3%, 89.7%, 90% { opacity: 1; }
+}
+
+/* ── ID Chip ─────────────────────────────────────────────────────── */
+.ds-angel-id-chip {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  font-size: 9px;
+  color: var(--ds-choten-muted, #9b8fb0);
+  text-align: right;
+  line-height: 1.4;
+  opacity: 0.4;
+}
+.ds-angel-id-chip b { color: var(--ds-choten-secondary, #45c6ff); }
+
+/* ── Heartbeat ───────────────────────────────────────────────────── */
+.ds-angel-heartbeat {
+  position: absolute;
+  bottom: 12px;
+  left: 12px;
+  font-size: 8px;
+  color: var(--ds-choten-muted, #9b8fb0);
+  opacity: 0.35;
+}
+.ds-angel-heartbeat span {
+  display: inline-block;
+  width: 30px;
+  height: 2px;
+  background: var(--ds-choten-accent, #ff45c8);
+  animation: ds-heartbeat-scan 1.8s ease-in-out infinite;
+}
+@keyframes ds-heartbeat-scan {
+  0%, 100% { opacity: 0.4; transform: scaleX(0.6); }
+  50% { opacity: 1; transform: scaleX(1); }
+}
+
+/* ── Now Playing ─────────────────────────────────────────────────── */
+.ds-angel-now-playing {
+  position: absolute;
+  bottom: 12px;
+  right: 12px;
+  font-size: 8px;
+  color: var(--ds-choten-muted, #9b8fb0);
+  opacity: 0.3;
+}
+.ds-angel-now-playing b { color: var(--ds-choten-accent, #ff45c8); }
+
+/* ── Chat Rain ───────────────────────────────────────────────────── */
+.ds-angel-chat-rain i {
+  position: absolute;
+  font-size: 10px;
+  color: var(--ds-choten-accent, #ff45c8);
+  opacity: 0;
+  animation: ds-chat-fall 6s linear infinite;
+}
+@keyframes ds-chat-fall {
+  0% { transform: translateY(-20px); opacity: 0; }
+  10% { opacity: 0.5; }
+  90% { opacity: 0.3; }
+  100% { transform: translateY(100vh); opacity: 0; }
+}

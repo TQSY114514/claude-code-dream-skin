@@ -2,7 +2,8 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 
-const ROOT = path.join(os.homedir(), '.claude-dream-skin');
+const DEFAULT_ROOT = path.join(os.homedir(), '.claude-dream-skin');
+const ROOT = process.env.DREAM_SKIN_TEST_ROOT || DEFAULT_ROOT;
 const THEMES_DIR = path.join(ROOT, 'themes');
 const ACTIVE_DIR = path.join(THEMES_DIR, 'active');
 const BACKUP_DIR = path.join(ROOT, 'backups');

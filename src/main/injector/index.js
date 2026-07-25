@@ -836,6 +836,13 @@ class CDPInjector {
     }
   }
 
+  async refreshAllInjections() {
+    await this.removeAllInjections();
+    if (!this._disconnected) {
+      await this.injectIntoAllSessions();
+    }
+  }
+
   async removeAllInjections() {
     const sessions = Array.from(this.sessions.values());
     const removals = sessions.map(s => this._removeFromSession(s));

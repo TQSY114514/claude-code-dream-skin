@@ -576,6 +576,47 @@
     };
   }
 
+  // ── Choten / Internet Angel Decorative Layer ──────────────────────────────
+
+  function isChotenTheme() {
+    const id = (THEME.id || THEME.name || '').toLowerCase();
+    const desc = (THEME.description || '').toLowerCase();
+    return /internet[- ]angel|choten|超天/.test(id + ' ' + desc);
+  }
+
+  function setupChotenDecorations() {
+    if (!isChotenTheme()) return null;
+    document.documentElement.setAttribute('data-dream-choten', 'true');
+
+    const stage = document.createElement('div');
+    stage.className = 'ds-angel-stage';
+    stage.innerHTML = `
+      <i class="ds-angel-halo"></i>
+      <div class="ds-angel-live-ticker">
+        <b>&hearts; LIVE CHAT</b><span>
+          <i>CHOTEN ONLINE 9999+</i>
+          <i>BLESS YOUR CODE</i>
+          <i>INTERNET ANGEL FOREVER</i>
+          <i>+1 +1 +1</i>
+        </span>
+      </div>
+      <div class="ds-angel-spark-field">
+        ${Array.from({length: 8}, () =>
+          `<i style="left:${Math.random()*100}%;top:${Math.random()*100}%;animation-delay:-${Math.random()*5}s"></i>`
+        ).join('')}
+      </div>
+      <div class="ds-angel-id-chip"><b>KANGEL.SYS</b><span>STREAM ID 01</span><i>ONLINE</i></div>
+      <div class="ds-angel-heartbeat"><b>LOVE SIGNAL</b><span></span><em>98%</em></div>
+      <div class="ds-angel-now-playing"><span>&#9835; NOW PLAYING</span><b>INTERNET OVERDOSE</b></div>
+      <div class="ds-angel-signal-wave"></div>
+    `;
+    document.body.appendChild(stage);
+
+    return {
+      cleanup() { try { stage.remove(); } catch (_) {} }
+    };
+  }
+
   // ── Main Ensure ───────────────────────────────────────────────────────────
 
   const aCache = new Map();
@@ -812,6 +853,9 @@
 
     // Dynamic effects
     const effects = setupDynamicEffects(null);
+
+    // Choten / Internet Angel decorative layer
+    const chotenDecorations = setupChotenDecorations();
 
     // Shell watcher
     startShellWatcher();

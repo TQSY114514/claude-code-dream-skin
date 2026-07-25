@@ -75,7 +75,7 @@
         }
       ],
       "icon": "resources/icon.ico",
-      "requestedExecutionLevel": "asInvoker"
+      "verifyUpdateCodeSignature": false
     },
     "nsis": {
       "oneClick": false,

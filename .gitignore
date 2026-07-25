@@ -23,3 +23,7 @@ runtime/*-compiled.*
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# Theme assets with third-party copyright (do not redistribute)
+themes/preset-internet-angel/art/dream-reference.jpg
+themes/preset-internet-angel-pixel-cafe/art/codex-dream-skin-pixel-cafe.png
