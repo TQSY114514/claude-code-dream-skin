@@ -10,6 +10,7 @@ contextBridge.exposeInMainWorld('cds', {
     install: (sourcePath) => ipcRenderer.invoke('theme:install', sourcePath),
     delete: (name) => ipcRenderer.invoke('theme:delete', name),
     create: (name, baseTheme) => ipcRenderer.invoke('theme:create', name, baseTheme),
+    restoreDefault: () => ipcRenderer.invoke('theme:restore-default'),
     export: (name) => ipcRenderer.invoke('theme:export', name),
     setBackground: (name, imagePath) => ipcRenderer.invoke('theme:set-background', name, imagePath),
     removeBackground: (name) => ipcRenderer.invoke('theme:remove-background', name),
@@ -26,12 +27,15 @@ contextBridge.exposeInMainWorld('cds', {
   claude: {
     status: () => ipcRenderer.invoke('claude:status'),
     restartWithCDP: () => ipcRenderer.invoke('claude:restart-with-cdp'),
+    setPath: (exePath) => ipcRenderer.invoke('claude:set-path', exePath),
+    browsePath: () => ipcRenderer.invoke('claude:browse-path'),
   },
 
   // Injection API
   inject: {
     status: () => ipcRenderer.invoke('inject:status'),
     refresh: () => ipcRenderer.invoke('inject:refresh'),
+    restore: () => ipcRenderer.invoke('inject:restore'),
   },
 
   // Window API

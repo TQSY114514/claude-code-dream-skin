@@ -605,8 +605,6 @@ class ProcessManager {
       console.log('[ProcessManager] Claude exe: ' + exePath);
 
       // Kill existing and relaunch
-      // For Store apps, AppUserModelId launch passes args on first activation.
-      // For regular installs, cmd.exe /C start works.
       console.log('[ProcessManager] Killing Claude to relaunch with CDP...');
       try {
         await this.killClaude();
@@ -624,15 +622,16 @@ class ProcessManager {
         }
 
         if (info.appUserModelId) {
-          // Store app: AUMID activation passes args on first launch.
-          // execSync blocks, so we need a generous timeout for Store app startup.
-          const argStr = args.map(a => `"${a}"`).join(' ');
+          // Store app: MUST use IApplicationActivationManager to pass args.
+          // Direct EXE launch from WindowsApps silently drops command-line args.
+          console.log('[ProcessManager] Store app detected, using COM activation');
+          const psScript = path.join(__dirname, 'store-activate.ps1');
           execSync(
-            `powershell -NoProfile -Command "Start-Process -AppUserModelId '${info.appUserModelId}' -ArgumentList ${argStr}"`,
-            { encoding: 'utf8', timeout: 30000, shell: 'cmd.exe', stdio: ['pipe', 'pipe', 'pipe'] }
+            `powershell -NoProfile -ExecutionPolicy Bypass -File "${psScript}" -AppId "${info.appUserModelId}" -Arguments "${args.join(' ').replace(/"/g, '\\"')}"`,
+            { encoding: 'utf8', timeout: 60000, shell: 'cmd.exe', stdio: ['pipe', 'pipe', 'pipe'] }
           );
         } else {
-          // Regular executable launch
+          // Regular install: cmd.exe /C start works fine
           const cmdLine = 'cmd.exe /C start "ClaudeCodeCDP" "' + exePath + '" ' + args.join(' ');
           exec(cmdLine, { windowsHide: true });
         }
@@ -650,7 +649,7 @@ class ProcessManager {
           browserId,
         });
 
-        return { launcher: info.appUserModelId ? 'store' : 'new', port, exePath };
+        return { launcher: 'new', port, exePath };
       } catch (e) {
         console.error('[ProcessManager] Launch error:', e);
         throw e;

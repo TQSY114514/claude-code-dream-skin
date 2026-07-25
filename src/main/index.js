@@ -3,12 +3,9 @@ const path = require('path');
 const SkinManager = require('./tray');
 const { getLocale, getAvailableLocales, detectLocale } = require('./locales');
 
-// GPU crash prevention — must be set before 'ready' event
+// GPU: disable hardware acceleration to prevent Electron GPU crashes
+// (common issue on some Windows systems)
 app.disableHardwareAcceleration();
-app.commandLine.appendSwitch('disable-gpu');
-app.commandLine.appendSwitch('disable-software-rasterizer');
-app.commandLine.appendSwitch('disable-gpu-compositing');
-app.commandLine.appendSwitch('in-process-gpu');
 
 // Prevent multiple instances
 const gotTheLock = app.requestSingleInstanceLock();
@@ -53,6 +50,7 @@ ipcMain.handle('theme:get-active', () => skinManager.themeEngine.getActiveTheme(
 ipcMain.handle('theme:install', (_, sourcePath) => skinManager.themeEngine.installTheme(sourcePath));
 ipcMain.handle('theme:delete', (_, name) => skinManager.themeEngine.deleteTheme(name));
 ipcMain.handle('theme:create', (_, name, baseTheme) => skinManager.themeEngine.createTheme(name, baseTheme));
+ipcMain.handle('theme:restore-default', () => skinManager.restoreDefault());
 ipcMain.handle('theme:export', (_, name) => {
   const defaultPath = path.join(app.getPath('downloads'), `${name}-theme.zip`);
   return skinManager.themeEngine.exportTheme(name, defaultPath);
@@ -69,13 +67,29 @@ ipcMain.handle('backup:list', () => skinManager.themeEngine.listBackups());
 ipcMain.handle('backup:restore', (_, backupName) => skinManager.themeEngine.restoreFromBackup(backupName));
 ipcMain.handle('backup:current', () => skinManager.themeEngine.backupCurrentTheme());
 
-// Process operations
-ipcMain.handle('claude:status', async () => ({
-  running: skinManager.claudeRunning,
-  path: skinManager.processManager.findClaudePath(),
-  userDataDir: skinManager.processManager.findUserDataDir(),
-}));
+// Claude operations
+ipcMain.handle('claude:status', async () => {
+  const pathInfo = skinManager.processManager.findClaudePath();
+  const userDataDir = skinManager.processManager.findUserDataDir();
+  return {
+    running: skinManager.claudeRunning,
+    path: pathInfo ? { path: pathInfo.path, source: pathInfo.source } : null,
+    userDataDir,
+  };
+});
 ipcMain.handle('claude:restart-with-cdp', () => skinManager.restartClaudeWithCDP());
+ipcMain.handle('claude:set-path', (_, exePath) => {
+  skinManager.processManager.saveManualPath(exePath);
+  return { ok: true };
+});
+ipcMain.handle('claude:browse-path', async () => {
+  const result = await dialog.showOpenDialog(skinManager.mainWindow, {
+    properties: ['openFile'],
+    filters: [{ name: 'Executable', extensions: ['exe'] }],
+    title: 'Select Claude Desktop',
+  });
+  return result;
+});
 
 // Injection operations
 ipcMain.handle('inject:status', () => skinManager.injectionStatus);

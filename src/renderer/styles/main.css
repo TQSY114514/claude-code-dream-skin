@@ -441,6 +441,31 @@ html, body {
   cursor: not-allowed;
 }
 
+.btn-small {
+  padding: 5px 10px;
+  font-size: 11px;
+  border-radius: var(--radius-sm);
+}
+
+.path-config {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.path-config input {
+  flex: 1;
+  padding: 6px 10px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-size: 11px;
+  font-family: var(--font-mono);
+  min-width: 0;
+}
+
 /* ── Import Area ── */
 .import-area {
   border: 2px dashed var(--border);
