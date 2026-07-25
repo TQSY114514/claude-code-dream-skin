@@ -1,4 +1,4 @@
-const { execSync, exec, spawn } = require('child_process');
+const { exec, execSync } = require('child_process');
 const os = require('os');
 const path = require('path');
 const fs = require('fs');
@@ -38,6 +38,7 @@ class ProcessManager {
     this.claudePid = null;
     this.userDataDir = null;
     this._state = null;
+    this._loading = false;
     this._loadState();
   }
 
@@ -543,21 +544,41 @@ class ProcessManager {
 
   // ── Launch with CDP ───────────────────────────────────────────────────────
 
-  launchWithCDP(debugPort) {
-    return new Promise(async (resolve, reject) => {
-      const port = debugPort || this.debugPort;
+  async launchWithCDP(debugPort) {
+    const port = debugPort || this.debugPort;
 
+    // Lock: prevent concurrent launches
+    if (this._launching) {
+      console.log('[ProcessManager] Launch already in progress, waiting...');
+      return new Promise((resolve, reject) => {
+        const check = async () => {
+          if (!this._launching) {
+            try {
+              const active = await this.isClaudeRunningWithCDP(port);
+              if (active) return resolve({ launcher: 'existing', port });
+            } catch (_) {}
+            reject(new Error('Launch did not complete'));
+          } else {
+            setTimeout(check, 500);
+          }
+        };
+        check();
+      });
+    }
+
+    this._launching = true;
+    try {
       // Check if CDP is already active
       const cdpActive = await this.isClaudeRunningWithCDP(port);
       if (cdpActive) {
         console.log('[ProcessManager] Claude already running with CDP on port ' + port);
-        return resolve({ launcher: 'existing', port });
+        return { launcher: 'existing', port };
       }
 
       // Find Claude executable
       const info = this.findClaudePath();
       if (!info) {
-        return reject(new Error('Claude Desktop not found. Please install it first.'));
+        throw new Error('Claude Desktop not found. Please install it first.');
       }
 
       const exePath = info.path;
@@ -571,7 +592,7 @@ class ProcessManager {
       this._saveState({
         schemaVersion: 2,
         port,
-        browserId: null, // filled after CDP verification
+        browserId: null,
         claudeExe: exePath,
         userDataDir: dataDir,
         detectSource: info.source,
@@ -580,12 +601,13 @@ class ProcessManager {
         signatureKind: info.signatureKind || null,
       });
 
-      console.log('[ProcessManager] Launching Claude with CDP on port ' + port);
+      console.log('[ProcessManager] CDP not active. Need to restart Claude with --remote-debugging-port=' + port);
       console.log('[ProcessManager] Claude exe: ' + exePath);
-      console.log('[ProcessManager] Detect source: ' + info.source);
-      if (dataDir) console.log('[ProcessManager] User data dir: ' + dataDir);
 
       // Kill existing and relaunch
+      // For Store apps, AppUserModelId launch passes args on first activation.
+      // For regular installs, cmd.exe /C start works.
+      console.log('[ProcessManager] Killing Claude to relaunch with CDP...');
       try {
         await this.killClaude();
       } catch (e) {
@@ -601,35 +623,41 @@ class ProcessManager {
           args.push('--user-data-dir=' + dataDir);
         }
 
-        // For Store apps, use PowerShell Start-Process with AppUserModelId
-        // This is Codex Dream Skin's pattern — it ensures args are passed to the Store app
         if (info.appUserModelId) {
-          console.log('[ProcessManager] Launching Store app via PowerShell AUMID...');
+          // Store app: AUMID activation passes args on first launch.
+          // execSync blocks, so we need a generous timeout for Store app startup.
           const argStr = args.map(a => `"${a}"`).join(' ');
           execSync(
             `powershell -NoProfile -Command "Start-Process -AppUserModelId '${info.appUserModelId}' -ArgumentList ${argStr}"`,
-            { encoding: 'utf8', timeout: 10000, shell: 'cmd.exe', stdio: ['pipe', 'pipe', 'pipe'] }
+            { encoding: 'utf8', timeout: 30000, shell: 'cmd.exe', stdio: ['pipe', 'pipe', 'pipe'] }
           );
         } else {
           // Regular executable launch
           const cmdLine = 'cmd.exe /C start "ClaudeCodeCDP" "' + exePath + '" ' + args.join(' ');
-          exec(cmdLine, { windowsHide: true }, (error) => {
-            if (error) {
-              console.error('[ProcessManager] Launch error:', error);
-              return reject(error);
-            }
-            console.log('[ProcessManager] Launched Claude with CDP on port ' + port);
-            resolve({ launcher: 'new', port, exePath });
-          });
-          return;
+          exec(cmdLine, { windowsHide: true });
         }
 
-        console.log('[ProcessManager] Launched Store app with CDP on port ' + port);
-        resolve({ launcher: 'store', port, exePath });
+        console.log('[ProcessManager] Launched Claude with CDP on port ' + port);
+
+        // Wait for CDP to become available
+        const version = await this.waitForCDP(port, 30000);
+        console.log('[ProcessManager] CDP ready on port ' + port);
+
+        // Update state with browser ID
+        const browserId = this._extractBrowserId(version);
+        this._saveState({
+          ...this._state,
+          browserId,
+        });
+
+        return { launcher: info.appUserModelId ? 'store' : 'new', port, exePath };
       } catch (e) {
-        reject(e);
+        console.error('[ProcessManager] Launch error:', e);
+        throw e;
       }
-    });
+    } finally {
+      this._launching = false;
+    }
   }
 }
 

@@ -17,6 +17,9 @@ class SkinManager {
     this.injectionStatus = { connected: false, injecting: false, error: null };
     this.trayUpdateInterval = null;
     this.locale = this._loadLocale();
+    this._autoInjecting = false;
+    this._lastClaudeCheck = 0;
+    this._claudeCheckCooldown = 8000;
   }
 
   _loadLocale() {
@@ -63,15 +66,21 @@ class SkinManager {
   }
 
   async checkClaudeStatus() {
+    const now = Date.now();
+    if (now - this._lastClaudeCheck < this._claudeCheckCooldown) return;
+    this._lastClaudeCheck = now;
+
     const wasRunning = this.claudeRunning;
-    this.claudeRunning = await this.processManager.isRunning();
+    try {
+      this.claudeRunning = await this.processManager.isRunning();
+    } catch (_) { return; }
 
     if (this.claudeRunning !== wasRunning) {
       this.updateTrayMenu();
       this.sendToWindow('claude-status-changed', { running: this.claudeRunning });
 
       if (this.claudeRunning) {
-        // Auto-connect and inject
+        // Auto-connect and inject (with lock)
         this.autoInject();
       } else {
         // Claude stopped, clean up
@@ -86,8 +95,10 @@ class SkinManager {
   }
 
   async autoInject() {
+    if (this._autoInjecting) return; // Already in progress
     if (this.injector) return; // Already connected
 
+    this._autoInjecting = true;
     try {
       const port = this.processManager.debugPort;
 
@@ -105,6 +116,8 @@ class SkinManager {
     } catch (e) {
       this.injectionStatus = { connected: false, injecting: false, error: e.message };
       this.sendToWindow('injection-status', this.injectionStatus);
+    } finally {
+      this._autoInjecting = false;
     }
   }
 
