@@ -3,7 +3,9 @@
 ## Requirements
 - Windows 10/11 (64-bit)
 - Node.js >= 18 (for development build)
-- Claude Code Desktop installed (from Microsoft Store)
+- Claude Code Desktop installed — either:
+  - **Website installer** (recommended for theming) — download from <https://claude.ai/download>. Installs to `%LOCALAPPDATA%\Programs\Claude\`.
+  - **Microsoft Store** version — also works but requires COM activation to pass CDP flags (handled automatically by this app).
 
 ## Quick Install (Development)
 

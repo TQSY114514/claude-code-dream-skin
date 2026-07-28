@@ -100,6 +100,13 @@ ipcMain.handle('inject:refresh', async () => {
   }
   return { ok: false };
 });
+ipcMain.handle('inject:restore', async () => {
+  if (skinManager.injector) {
+    await skinManager.injector.restoreDefault();
+    return { ok: true };
+  }
+  return { ok: false };
+});
 
 // Window operations
 ipcMain.handle('window:minimize', () => skinManager.mainWindow?.minimize());

@@ -74,9 +74,28 @@
 
 ```bash
 npm install
-npm run build-icon
+npm run build:assets   # 编译 runtime 主题资源（必需，否则注入会失败）
 npm start
 ```
+
+> 没运行 `build:assets` 也能启动，注入器会回退到源文件并在内存里即时编译，
+> 但控制台会有警告，性能略差。打包发布前务必先跑一次。
+
+### 检测顺序说明
+
+`findClaudePath()` 现在按以下顺序检测 Claude Desktop（先匹配的优先）：
+
+1. 手动保存的路径（设置页里填的）
+2. `CLAUDE_DESKTOP_PATH` 环境变量
+3. 正在运行的 `Claude.exe` 进程
+4. **官网安装版**（`%LOCALAPPDATA%\Programs\Claude\Claude.exe` 等）
+5. Microsoft Store 包（`Get-AppxPackage *Claude*`）
+6. 开始菜单快捷方式
+7. `WindowsApps` 目录扫描
+
+Store 版的 Claude 因为 MSIX 沙箱限制，命令行参数会被吞掉，
+必须走 COM 激活（`store-activate.ps1`）。官网安装版没这个问题，
+直接 `Claude.exe --remote-debugging-port=9222` 就行。
 
 ### 构建安装包
 

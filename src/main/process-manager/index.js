@@ -348,6 +348,30 @@ class ProcessManager {
     return null;
   }
 
+  /**
+   * Detect Claude Desktop installed via the official website installer
+   * (Squirrel-based Electron installer downloaded from claude.ai/download).
+   * This is the most common install method for users who explicitly chose
+   * not to use the Microsoft Store version.
+   */
+  _detectViaWebsiteInstaller() {
+    const localAppData = process.env.LOCALAPPDATA
+      || path.join(os.homedir(), 'AppData', 'Local');
+    // Squirrel installs the app under Programs\<PublisherOrName>\
+    const candidates = [
+      path.join(localAppData, 'Programs', 'Claude', 'Claude.exe'),
+      path.join(localAppData, 'Programs', 'AnthropicClaude', 'Claude.exe'),
+      path.join(localAppData, 'AnthropicClaude', 'Claude.exe'),
+      path.join(localAppData, 'Claude', 'Claude.exe'),
+    ];
+    for (const exe of candidates) {
+      if (fs.existsSync(exe)) {
+        return { path: path.resolve(exe), source: 'website-installer' };
+      }
+    }
+    return null;
+  }
+
   // ── Main Detection ────────────────────────────────────────────────────────
 
   findClaudePath() {
@@ -363,19 +387,23 @@ class ProcessManager {
       return { path: path.resolve(customPath), source: 'env' };
     }
 
-    // Strategy 2: Store package (Codex's primary method — most reliable)
-    const storeResult = this._detectViaStorePackage();
-    if (storeResult) return storeResult;
-
-    // Strategy 3: Running process (fast)
+    // Strategy 2: Running process (fastest when Claude is already open)
     const runningResult = this._detectViaRunningProcess();
     if (runningResult) return runningResult;
 
-    // Strategy 4: Start Menu shortcut
+    // Strategy 3: Website installer (Squirrel — official download from claude.ai)
+    const websiteResult = this._detectViaWebsiteInstaller();
+    if (websiteResult) return websiteResult;
+
+    // Strategy 4: Store package (Microsoft Store install)
+    const storeResult = this._detectViaStorePackage();
+    if (storeResult) return storeResult;
+
+    // Strategy 5: Start Menu shortcut
     const shortcutResult = this._detectViaStartMenu();
     if (shortcutResult) return shortcutResult;
 
-    // Strategy 5: WindowsApps directory scan
+    // Strategy 6: WindowsApps directory scan (Store package on disk)
     const waResult = this._detectViaWindowsApps();
     if (waResult) return waResult;
 
@@ -399,11 +427,21 @@ class ProcessManager {
       if (match && fs.existsSync(match[1])) return path.resolve(match[1]);
     } catch (e) {}
 
-    // Common paths
+    // Common paths across install types:
+    // - Store package:           %LOCALAPPDATA%\Claude-3p (legacy Codex-style)
+    // - Website installer:       %APPDATA%\Claude, %APPDATA%\AnthropicClaude
+    // - Older / portable builds: %LOCALAPPDATA%\Claude, %LOCALAPPDATA%\AnthropicClaude
+    const appData = process.env.APPDATA
+      || path.join(os.homedir(), 'AppData', 'Roaming');
+    const localAppData = process.env.LOCALAPPDATA
+      || path.join(os.homedir(), 'AppData', 'Local');
     const candidates = [
-      path.join(os.homedir(), 'AppData', 'Local', 'Claude-3p'),
+      path.join(appData, 'Claude'),
+      path.join(appData, 'AnthropicClaude'),
+      path.join(localAppData, 'AnthropicClaude'),
+      path.join(localAppData, 'Claude'),
+      path.join(localAppData, 'Claude-3p'),
       path.join('D:', 'Claude-3p'),
-      path.join(os.homedir(), 'AppData', 'Local', 'Claude'),
     ];
     for (const dir of candidates) {
       if (fs.existsSync(dir)) return path.resolve(dir);

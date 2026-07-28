@@ -54,8 +54,6 @@
 }
 
 html[data-dream-skin="active"][data-dream-shell="light"] {
-
-html[data-dream-skin="active"][data-dream-shell="light"] {
   color-scheme: light !important;
   --ds-bg: #f3f5f6;
   --ds-panel: #fafbfb;
@@ -861,7 +859,8 @@ html[data-dream-skin="active"] {
   --ds-font-pixel: 'Courier New', 'Consolas', 'Monaco', monospace;
 }
 
-/* ── Dynamic effects CSS variables ── */
+/* ── Dynamic effects CSS variables (defaults; overridden per-shell above) ── */
+:root[data-dream-skin="active"] {
   --ds-particle-count: 40;
   --ds-particle-speed: 1;
   --ds-particle-duration: 8s;

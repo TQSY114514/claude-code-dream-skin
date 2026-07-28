@@ -21,9 +21,31 @@ const WebSocket = require('ws');
 const crypto = require('crypto');
 
 const LOOPBACK = new Set(['127.0.0.1', 'localhost', '[::1]', '::1']);
+const RUNTIME_DIR = path.join(__dirname, '..', '..', '..', 'runtime');
 const SELECTORS_PATH = path.join(__dirname, '..', '..', '..', 'tools', 'selectors.json');
-const CSS_COMPILED_PATH = path.join(__dirname, '..', '..', '..', 'runtime', 'dream-skin-compiled.css');
-const INJECT_COMPILED_PATH = path.join(__dirname, '..', '..', '..', 'runtime', 'renderer-inject-compiled.js');
+const CSS_COMPILED_PATH = path.join(RUNTIME_DIR, 'dream-skin-compiled.css');
+const CSS_SOURCE_PATH = path.join(RUNTIME_DIR, 'dream-skin.css');
+const INJECT_COMPILED_PATH = path.join(RUNTIME_DIR, 'renderer-inject-compiled.js');
+const INJECT_SOURCE_PATH = path.join(RUNTIME_DIR, 'renderer-inject.js');
+
+// Token → selectors.json key mapping (must match tools/sync-runtime-assets.mjs)
+const SELECTOR_TOKEN_MAP = {
+  '__DREAM_SELECTOR_SHELL_MAIN__':        'shell-main',
+  '__DREAM_SELECTOR_LEFT_PANEL__':        'left-panel',
+  '__DREAM_SELECTOR_HEADER_TINT__':       'header-tint',
+  '__DREAM_SELECTOR_COMPOSER_CHROME__':   'composer-chrome',
+  '__DREAM_SELECTOR_HOME_ROUTE__':        'home-route',
+  '__DREAM_SELECTOR_HOME_ROUTE_CSS__':    'home-route-css',
+  '__DREAM_SELECTOR_HOME_ICON__':         'home-icon',
+  '__DREAM_SELECTOR_GAME_SOURCE__':       'game-source',
+  '__DREAM_SELECTOR_HOME_SUGGESTIONS__':  'home-suggestions',
+  '__DREAM_SELECTOR_MARKDOWN__':          'markdown',
+  '__DREAM_SELECTOR_MESSAGE__':           'message',
+  '__DREAM_SELECTOR_CODE_BLOCK__':        'code-block',
+  '__DREAM_SELECTOR_SEND_BUTTON__':       'send-button',
+};
+
+const SKIN_VERSION = '1.3.5';
 
 // ── Browser Identity Anchor ────────────────────────────────────────────────
 
@@ -277,20 +299,58 @@ class PayloadAssembler {
     }
   }
 
+  /**
+   * Resolve __DREAM_SELECTOR_*__ tokens in source CSS using selectors.json.
+   * Mirrors tools/sync-runtime-assets.mjs so the app works without a build step.
+   */
+  _compileCssFromSource(source) {
+    let result = source;
+    for (const [token, key] of Object.entries(SELECTOR_TOKEN_MAP)) {
+      const sel = this.selectors[key] || '*';
+      result = result.split(token).join(sel);
+    }
+    return result;
+  }
+
   _loadCSS() {
+    // Prefer pre-compiled CSS (produced by `npm run build:assets`)
     try {
       this.compiledCSS = fs.readFileSync(CSS_COMPILED_PATH, 'utf-8');
+      return;
+    } catch (_) { /* fall through to source */ }
+
+    // Fall back: compile from source in memory
+    try {
+      const source = fs.readFileSync(CSS_SOURCE_PATH, 'utf-8');
+      this.compiledCSS = this._compileCssFromSource(source);
+      console.warn('[PayloadAssembler] compiled CSS not found — compiled from source in memory (run `npm run build:assets` to pre-build)');
     } catch (e) {
-      console.warn('[PayloadAssembler] compiled CSS not found');
+      console.warn('[PayloadAssembler] dream-skin.css source not found:', e.message);
       this.compiledCSS = '';
     }
   }
 
   _loadTemplate() {
+    // Prefer pre-compiled injector template
     try {
       this.injectTemplate = fs.readFileSync(INJECT_COMPILED_PATH, 'utf-8');
+      return;
+    } catch (_) { /* fall through to source */ }
+
+    // Fall back: load source renderer-inject.js. Runtime placeholders
+    // (__DREAM_SKIN_CSS_JSON__ etc.) are resolved by assemble() at inject time.
+    try {
+      let source = fs.readFileSync(INJECT_SOURCE_PATH, 'utf-8');
+      // Resolve static placeholders that sync-runtime-assets.mjs would have baked in
+      const styleRevision = crypto.createHash('sha256')
+        .update(this.compiledCSS || '', 'utf-8').digest('hex').slice(0, 20);
+      source = source.split('__DREAM_SKIN_VERSION_JSON__').join(JSON.stringify(SKIN_VERSION));
+      source = source.split('__DREAM_SKIN_STYLE_REVISION_JSON__').join(JSON.stringify(styleRevision));
+      // __DREAM_SKIN_PAYLOAD_REVISION_JSON__ is recomputed per-injection in assemble()
+      this.injectTemplate = source;
+      console.warn('[PayloadAssembler] compiled injector not found — using source renderer-inject.js (run `npm run build:assets` to pre-build)');
     } catch (e) {
-      console.warn('[PayloadAssembler] compiled injector not found');
+      console.warn('[PayloadAssembler] renderer-inject.js source not found:', e.message);
       this.injectTemplate = '';
     }
   }
@@ -336,8 +396,6 @@ class PayloadAssembler {
   }
 }
 
-const SKIN_VERSION = '1.3.5';
-
 // ── Probe Session ──────────────────────────────────────────────────────────
 
 /**
@@ -353,11 +411,20 @@ function probeExpression() {
       composer: Boolean(document.querySelector('[contenteditable="true"], [role="textbox"], [class*="composer"], textarea')),
       main: Boolean(document.querySelector('[class*="home"], [class*="Welcome"], [role="main"]:has(*)')),
     };
+    // Claude Desktop uses the app: scheme (verified in references.md).
+    // Accept https:/file: as fallbacks for forward-compat, but require ALL
+    // key markers (shell + sidebar + composer) so we never inject into an
+    // unrelated Electron app that happens to share the CDP port.
+    const proto = location.protocol;
+    const isAppScheme = proto === 'app:';
+    const isFallbackScheme = proto === 'https:' || proto === 'file:';
+    const strongMatch = markers.shell && markers.sidebar && (markers.header || markers.composer);
+    const weakMatch = (markers.shell && (markers.sidebar || (markers.header && markers.composer))) || markers.main;
+    const claude = (isAppScheme && weakMatch) || (isFallbackScheme && strongMatch);
     return {
       markers,
-      claude: location.protocol === 'app:' &&
-        ((markers.shell && (markers.sidebar || (markers.header && markers.composer))) || markers.main),
-      protocol: location.protocol,
+      claude,
+      protocol: proto,
       title: typeof document.title === 'string' ? document.title.substring(0, 80) : '',
     };
   })()`;
