@@ -42,16 +42,36 @@ if ($ArgumentsFile -and (Test-Path $ArgumentsFile)) {
   $Arguments = Get-Content $ArgumentsFile -Raw -Encoding UTF8
 }
 
-# Create the COM object via its ProgID (CoCreateInstance internally).
-# Returns a __ComObject that exposes IDispatch; PowerShell invokes methods
-# on it dynamically by name, bypassing the managed-interface QueryInterface
-# that fails with E_NOINTERFACE when using [Type]::GetTypeFromCLSID.
-$mgr = New-Object -ComObject 'Windows.ApplicationModel.Activation.ApplicationActivationManager' -ErrorAction Stop
+# Create the COM object directly via CoCreateInstance with the known CLSID
+# {45ba127d-10a8-46ea-8ab7-56ea9078943c}. The ProgID
+# 'Windows.ApplicationModel.Activation.ApplicationActivationManager' is NOT
+# registered on some Windows installs (Store components missing it), so
+# New-Object -ComObject fails with REGDB_E_CLASSNOTREG. CoCreateInstance
+# with an explicit CLSID + IID_IUnknown works as long as the CLSID is
+# registered (it is — it ships with Windows).
+$CLSID_AAM = [Guid]'45ba127d-10a8-46ea-8ab7-56ea9078943c'
+$IID_IUnknown = [Guid]'00000000-0000-0000-C000-000000000046'
+$type = [Type]::GetTypeFromCLSID($CLSID_AAM)
+if ($null -eq $type) {
+    throw "GetTypeFromCLSID returned null — CLSID {45ba127d-...} not registered"
+}
+$mgr = [Activator]::CreateInstance($type)
+if ($null -eq $mgr) {
+    throw "Activator.CreateInstance returned null"
+}
 
 # $PID is a read-only automatic variable in PowerShell — use a different name.
 $procId = 0
-# Dynamic dispatch: PowerShell resolves 'ActivateApplication' via IDispatch.
-$hr = $mgr.ActivateApplication($AppId, $Arguments, 0, [ref]$procId)
+# Dynamic dispatch: PowerShell resolves 'ActivateApplication' via IDispatch,
+# which the __ComObject exposes regardless of whether the
+# IApplicationActivationManager interface is registered.
+try {
+    $hr = $mgr.ActivateApplication($AppId, $Arguments, 0, [ref]$procId)
+} catch [System.Runtime.InteropServices.COMException] {
+    # Late-binding COM calls sometimes surface HRESULTs as exceptions.
+    $hr = $_.Exception.HResult
+    if ($hr -eq 0) { throw }
+}
 if ($hr -ne 0) {
     throw [System.ComponentModel.Win32Exception]::new($hr, "ActivateApplication failed (HR=0x$($hr.ToString('X8')))")
 }

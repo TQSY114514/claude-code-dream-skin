@@ -62,7 +62,7 @@
 5. **监控** — 页面导航/刷新时自动重新注入
 6. **备份** — 自动保存原始状态以便恢复
 
-> Microsoft Store 版 Claude 因 MSIX 沙箱限制会吞掉命令行参数，需走 COM 激活（`store-activate.ps1`）。官网安装版直接传参即可。详见 [检测顺序说明](./docs/references.md)。
+> ⚠️ **重要限制**：当前 Microsoft Store 版和官网下载版 Claude 都是 MSIX 包，沙箱会剥离 `--remote-debugging-port` 命令行参数，CDP 注入**无法工作**。详见下方[已知限制](#已知限制)。
 
 ## 快速开始
 
@@ -124,6 +124,29 @@ themes/
   }
 }
 ```
+
+## 已知限制
+
+### Microsoft Store / 官网 MSIX 版 Claude 暂不支持 CDP 注入
+
+Anthropic 当前只分发 MSIX 格式的 Claude Desktop（包括官网下载的 `Claude Setup.exe`——它只是 MSIX 引导器，运行时下载并安装的还是 MSIX 包）。MSIX 沙箱会**剥离 `--remote-debugging-port` 命令行参数**，导致 Dream Skin 无法开启 CDP 端口。
+
+**这不是 Dream Skin 的 bug，是 MSIX 的硬性限制**。我们已尝试所有可行路径，均无法绕过：
+
+| 方案 | 结果 |
+|------|------|
+| 直接 `Claude.exe --remote-debugging-port=9222` | 参数被 MSIX 沙箱剥离，主进程命令行只剩纯 exe 路径 |
+| `explorer.exe shell:AppsFolder\...` 启动 | 同上，且这种方式本身不支持传命令行参数 |
+| COM 激活 `IApplicationActivationManager` | `ApplicationActivationManager` 是 WinRT 类，.NET Framework / PowerShell 5.1 的 `QueryInterface` 返回 `E_NOINTERFACE` |
+| 配置文件 / 环境变量开启 CDP | Electron 只支持命令行参数开启 CDP，无替代方案 |
+
+**与 Codex Dream Skin 的对比**：Codex Dream Skin 在相同版本的 Store 包上遇到完全相同的问题（见其 [issue #235](https://github.com/Fei-Away/Codex-Dream-Skin/issues/235) 和 [runtime-notes.md](https://github.com/Fei-Away/Codex-Dream-Skin/blob/main/windows/references/runtime-notes.md)），他们也将当前能力定位为"诊断加固，不宣称受影响版本已恢复兼容"。
+
+**临时方案**：如果你有旧版 NSIS 安装包（装到 `%LOCALAPPDATA%\Programs\Claude\` 的那种，非 WindowsApps 路径），可以直接用 NSIS 版，CDP 注入正常工作。
+
+**等待修复**：需要 Anthropic 后续提供 NSIS 安装包，或在 MSIX 包中开放 CDP 配置项。在此之前，Dream Skin 的主题管理、SVG 资产、面板功能仍可正常使用，只是无法注入到 Claude 中。
+
+---
 
 ## 安全设计
 

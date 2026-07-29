@@ -62,7 +62,7 @@ Each theme is driven by an `accent` color + background color + CSS variable syst
 5. **Monitor** — auto-reinject on navigation/refresh
 6. **Backup** — save original state for restore
 
-> Microsoft Store Claude swallows CLI args due to MSIX sandboxing and needs COM activation (`store-activate.ps1`). Website builds accept args directly. See [detection order](./docs/references.md).
+> ⚠️ **Important limitation**: Both Microsoft Store and website-download versions of Claude are now MSIX packages. The sandbox strips the `--remote-debugging-port` CLI flag, so CDP injection **does not work**. See [Known limitations](#known-limitations) below.
 
 ## Quick start
 
@@ -124,6 +124,29 @@ themes/
   }
 }
 ```
+
+## Known limitations
+
+### CDP injection does not work on Microsoft Store / MSIX versions of Claude
+
+Anthropic currently distributes Claude Desktop only as an MSIX package (this includes the `Claude Setup.exe` downloaded from the official website — it is just an MSIX bootstrapper that downloads and installs the same MSIX package at runtime). The MSIX sandbox **strips the `--remote-debugging-port` CLI argument**, preventing Dream Skin from opening the CDP port.
+
+**This is not a Dream Skin bug — it is a hard MSIX limitation.** All viable workarounds have been attempted and none can bypass it:
+
+| Approach | Result |
+|---------|--------|
+| Direct `Claude.exe --remote-debugging-port=9222` | Flag stripped by MSIX sandbox; main process command line is bare exe path |
+| `explorer.exe shell:AppsFolder\...` launch | Same as above, and this method doesn't support CLI args at all |
+| COM activation via `IApplicationActivationManager` | `ApplicationActivationManager` is a WinRT class; `QueryInterface` returns `E_NOINTERFACE` under .NET Framework / PowerShell 5.1 |
+| Enable CDP via config file / env var | Electron only supports enabling CDP via CLI flag — no alternative exists |
+
+**Comparison with Codex Dream Skin**: Codex Dream Skin hits the exact same wall on the same Store package versions (see their [issue #235](https://github.com/Fei-Away/Codex-Dream-Skin/issues/235) and [runtime-notes.md](https://github.com/Fei-Away/Codex-Dream-Skin/blob/main/windows/references/runtime-notes.md)). They also describe the current capability as "diagnostic hardening, not claiming affected versions have restored compatibility."
+
+**Workaround**: If you have an older NSIS installer (the kind that installs to `%LOCALAPPDATA%\Programs\Claude\`, not the WindowsApps path), you can use the NSIS version directly — CDP injection works normally there.
+
+**Waiting for a fix**: This requires Anthropic to either ship an NSIS installer again or expose a CDP config option in the MSIX package. Until then, Dream Skin's theme management, SVG assets, and panel features still work — only injection into Claude is blocked.
+
+---
 
 ## Safety
 
