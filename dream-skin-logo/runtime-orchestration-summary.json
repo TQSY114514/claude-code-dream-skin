@@ -1,0 +1,61 @@
+{
+  "project": {
+    "resolvedLane": "graphic_bitmap_first",
+    "selectedIntentWorkflowRead": true,
+    "contextRequirementsLoaded": [
+      {
+        "path": "shared-runtime/runtime-boundaries/lane-runtime-contracts.md",
+        "readStatus": "loaded",
+        "bodyRead": true
+      },
+      {
+        "path": "shared-runtime/design-artifact-formats/graphic-asset-design-file-format.md",
+        "readStatus": "loaded",
+        "bodyRead": true
+      },
+      {
+        "path": "shared-runtime/deterministic-tooling/validate-graphic-asset-design.mjs",
+        "readStatus": "loaded",
+        "bodyRead": true
+      },
+      {
+        "path": "delivery-quality/delivery-evidence-contract.md",
+        "readStatus": "loaded",
+        "bodyRead": true
+      }
+    ],
+    "contextReadScope": "lane-required-only",
+    "validationRunDiscipline": "run-validate-graphic-asset-design",
+    "lowValueCallWatchdog": {
+      "noProgressNextAction": "proceed-to-generation"
+    },
+    "graphicStrategyGate": {
+      "graphicStrategyGate": "bitmap-first",
+      "textCriticality": "low",
+      "copyDensity": "none",
+      "coreInfoTypes": [],
+      "bitmapFirstAllowed": true,
+      "layoutStaticRequired": false,
+      "graphicStrategyRoutingReason": "Logo design request; no editable text required; the visual mark itself is the deliverable."
+    },
+    "imageAssets": [
+      {
+        "id": "image-001",
+        "title": "Dream Skin 极光球体 Logo",
+        "imageSrc": "assets/dream-skin-logo-aurora.jpg",
+        "registered": true
+      },
+      {
+        "id": "image-002",
+        "title": "Dream Skin 渐变面具 Logo",
+        "imageSrc": "assets/dream-skin-logo-mask.jpg",
+        "registered": true
+      }
+    ],
+    "validationResult": {
+      "script": "shared-runtime/deterministic-tooling/validate-graphic-asset-design.mjs",
+      "status": "passed",
+      "checkedAt": "2026-07-29T05:31:00.000Z"
+    }
+  }
+}

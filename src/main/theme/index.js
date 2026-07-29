@@ -64,7 +64,9 @@ class ThemeEngine {
     if (!fs.existsSync(metaPath)) return null;
     try {
       const meta = JSON.parse(fs.readFileSync(metaPath, 'utf8'));
-      return { name, ...meta };
+      // `name` (directory/id) MUST NOT be overwritten by meta.name (display name).
+      // Frontend uses theme.name as the directory key for activate/delete/uploadBg.
+      return { ...meta, name, displayName: meta.name };
     } catch (e) {
       return { name, error: 'Invalid theme.json' };
     }

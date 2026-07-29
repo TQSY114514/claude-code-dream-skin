@@ -1,0 +1,120 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 420" role="img" aria-label="工作原理：CDP 外部注入">
+  <defs>
+    <linearGradient id="bg2" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#0d0d0f"/>
+      <stop offset="1" stop-color="#15151a"/>
+    </linearGradient>
+    <linearGradient id="claudeCard" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1f1a16"/>
+      <stop offset="1" stop-color="#161210"/>
+    </linearGradient>
+    <linearGradient id="skinCard" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1a1620"/>
+      <stop offset="1" stop-color="#13101a"/>
+    </linearGradient>
+    <linearGradient id="flowLine" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#FF6B35"/>
+      <stop offset="0.5" stop-color="#ff45c8"/>
+      <stop offset="1" stop-color="#c4a7e7"/>
+    </linearGradient>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#ff45c8"/>
+    </marker>
+    <marker id="arrowBack" viewBox="0 0 10 10" refX="1" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M10,0 L0,5 L10,10 z" fill="#FF6B35"/>
+    </marker>
+  </defs>
+
+  <rect width="880" height="420" fill="url(#bg2)"/>
+
+  <g font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif" text-rendering="geometricPrecision">
+
+    <!-- Title -->
+    <text x="440" y="36" font-size="14" font-weight="600" letter-spacing="2" fill="#8b8b95" text-anchor="middle">
+      CDP EXTERNAL INJECTION · 不修改官方文件
+    </text>
+
+    <!-- Claude Desktop card -->
+    <g transform="translate(40,72)">
+      <rect width="300" height="200" rx="12" fill="url(#claudeCard)" stroke="#FF6B35" stroke-opacity="0.3"/>
+      <text x="150" y="32" font-size="13" font-weight="700" fill="#FF6B35" text-anchor="middle">Claude Code Desktop</text>
+      <text x="150" y="50" font-size="11" fill="#a1a1aa" text-anchor="middle">Electron · Claude.exe</text>
+
+      <rect x="24" y="72" width="252" height="48" rx="6" fill="#0d0d0f" stroke="#27272a"/>
+      <text x="40" y="94" font-size="11" font-weight="600" fill="#d4d4d8">Main Process</text>
+      <text x="40" y="110" font-size="10" fill="#71717a">Renderer (app.asar, 未修改)</text>
+
+      <rect x="24" y="132" width="118" height="32" rx="5" fill="#161210" stroke="#27272a"/>
+      <text x="83" y="153" font-size="10" fill="#a1a1aa" text-anchor="middle">--remote-debugging-port</text>
+      <rect x="158" y="132" width="118" height="32" rx="5" fill="#161210" stroke="#27272a"/>
+      <text x="217" y="153" font-size="10" fill="#a1a1aa" text-anchor="middle">CDP WebSocket :9222</text>
+
+      <text x="150" y="186" font-size="10" fill="#52525b" text-anchor="middle">官方签名 · app.asar · 完整保留</text>
+    </g>
+
+    <!-- Dream Skin Manager card -->
+    <g transform="translate(540,72)">
+      <rect width="300" height="200" rx="12" fill="url(#skinCard)" stroke="#c4a7e7" stroke-opacity="0.3"/>
+      <text x="150" y="32" font-size="13" font-weight="700" fill="#c4a7e7" text-anchor="middle">Dream Skin Manager</text>
+      <text x="150" y="50" font-size="11" fill="#a1a1aa" text-anchor="middle">Electron Tray App · 本机回环</text>
+
+      <rect x="20" y="68" width="128" height="44" rx="6" fill="#0d0d0f" stroke="#27272a"/>
+      <text x="84" y="88" font-size="11" font-weight="600" fill="#d4d4d8" text-anchor="middle">Theme Engine</text>
+      <text x="84" y="103" font-size="9" fill="#71717a" text-anchor="middle">17 预设 · 变量系统</text>
+
+      <rect x="152" y="68" width="128" height="44" rx="6" fill="#0d0d0f" stroke="#27272a"/>
+      <text x="216" y="88" font-size="11" font-weight="600" fill="#d4d4d8" text-anchor="middle">CDP Injector</text>
+      <text x="216" y="103" font-size="9" fill="#71717a" text-anchor="middle">CSS.addStyleSheet</text>
+
+      <rect x="20" y="120" width="128" height="44" rx="6" fill="#0d0d0f" stroke="#27272a"/>
+      <text x="84" y="140" font-size="11" font-weight="600" fill="#d4d4d8" text-anchor="middle">Backup Manager</text>
+      <text x="84" y="155" font-size="9" fill="#71717a" text-anchor="middle">自动备份 · 一键恢复</text>
+
+      <rect x="152" y="120" width="128" height="44" rx="6" fill="#0d0d0f" stroke="#27272a"/>
+      <text x="216" y="140" font-size="11" font-weight="600" fill="#d4d4d8" text-anchor="middle">Process Manager</text>
+      <text x="216" y="155" font-size="9" fill="#71717a" text-anchor="middle">检测 · 带 CDP 启动</text>
+
+      <text x="150" y="186" font-size="10" fill="#52525b" text-anchor="middle">不上传数据 · 不读 API Key</text>
+    </g>
+
+    <!-- Connection line -->
+    <line x1="345" y1="172" x2="535" y2="172" stroke="url(#flowLine)" stroke-width="2" marker-end="url(#arrow)" marker-start="url(#arrowBack)"/>
+    <text x="440" y="166" font-size="10" font-weight="600" fill="#d4d4d8" text-anchor="middle">CDP · 127.0.0.1</text>
+    <text x="440" y="186" font-size="9" fill="#71717a" text-anchor="middle">WebSocket</text>
+
+    <!-- Flow steps -->
+    <g transform="translate(40,300)">
+      <text x="0" y="0" font-size="11" font-weight="700" letter-spacing="2" fill="#8b8b95">INJECTION FLOW</text>
+
+      <g transform="translate(0,16)">
+        <circle cx="10" cy="10" r="10" fill="#FF6B35"/>
+        <text x="10" y="14" font-size="10" font-weight="700" fill="#0d0d0f" text-anchor="middle">1</text>
+        <text x="28" y="14" font-size="11" fill="#d4d4d8">检测 Claude 进程</text>
+      </g>
+      <g transform="translate(160,16)">
+        <circle cx="10" cy="10" r="10" fill="#ff7e5f"/>
+        <text x="10" y="14" font-size="10" font-weight="700" fill="#0d0d0f" text-anchor="middle">2</text>
+        <text x="28" y="14" font-size="11" fill="#d4d4d8">带 CDP 重启</text>
+      </g>
+      <g transform="translate(300,16)">
+        <circle cx="10" cy="10" r="10" fill="#ff45c8"/>
+        <text x="10" y="14" font-size="10" font-weight="700" fill="#0d0d0f" text-anchor="middle">3</text>
+        <text x="28" y="14" font-size="11" fill="#d4d4d8">建立 WebSocket</text>
+      </g>
+      <g transform="translate(460,16)">
+        <circle cx="10" cy="10" r="10" fill="#c4a7e7"/>
+        <text x="10" y="14" font-size="10" font-weight="700" fill="#0d0d0f" text-anchor="middle">4</text>
+        <text x="28" y="14" font-size="11" fill="#d4d4d8">注入主题 CSS</text>
+      </g>
+      <g transform="translate(620,16)">
+        <circle cx="10" cy="10" r="10" fill="#7dcfff"/>
+        <text x="10" y="14" font-size="10" font-weight="700" fill="#0d0d0f" text-anchor="middle">5</text>
+        <text x="28" y="14" font-size="11" fill="#d4d4d8">监控 · 自动重注入</text>
+      </g>
+    </g>
+
+    <text x="40" y="404" font-size="10" fill="#52525b">
+      全部修改可恢复 · 自动备份最多 10 份 · 不破解签名 · 不改 Claude 配置
+    </text>
+  </g>
+</svg>

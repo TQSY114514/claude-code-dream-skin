@@ -1,72 +1,68 @@
-# Claude Code Dream Skin
+<p align="center">
+  <img src="./docs/images/hero.svg" alt="Claude Code Dream Skin" width="880">
+</p>
 
 <p align="center">
   <strong>中文</strong> · <a href="./README.en.md">English</a>
 </p>
 
 <p align="center">
+  <a href="https://github.com/TQSY114514/claude-code-dream-skin/blob/master/LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/License-MIT-yellow.svg"></a>
+  <img alt="Platform: Windows" src="https://img.shields.io/badge/Platform-Windows-blue.svg">
+  <img alt="Electron" src="https://img.shields.io/badge/Electron-34-47848F.svg">
+  <img alt="PRs Welcome" src="https://img.shields.io/badge/PRs-welcome-brightgreen.svg">
+  <img alt="Method: CDP" src="https://img.shields.io/badge/Injection-CDP-ff45c8.svg">
+</p>
+
+<p align="center">
   <strong>给 Claude Code 桌面端换一张会呼吸的脸。</strong><br>
-  外部主题 / 换肤工具 · 不修改官方安装包
+  外部主题 / 换肤工具 · 本机 CDP 注入 · 不修改官方安装包
 </p>
 
 <p align="center">
   一张图，一种心情 · 写代码，也要有氛围感
 </p>
 
+---
+
 ## 它做什么
 
-- **CDP 外部注入**：通过 Chrome DevTools Protocol 向 Claude Desktop 注入 CSS
-- **不修改官方文件**：不修改 app.asar，不破解签名
-- **CSS 变量系统**：20+ 自定义属性控制每个视觉元素
-- **多图层背景**：背景图片 + 模糊 + 视差效果
-- **17 款预设主题**：Default / Gothic Neon / Tokyo Night / Forest Mist / Sakura Dream / Midnight Glass / Aurora / Sunset Boulevard / Ocean Deep / Catppuccin Mocha / Dracula / Solarized Light / Rosé Pine / Cyberpunk / 超天酱 · INTERNET ANGEL / 超天酱 · INTERNET ANGEL · Pixel Cafe / Gothic Void Crusade
-- **自定义导入**：支持 .zip 主题包导入
-- **自动备份**：切换主题前自动备份，一键恢复
-- **系统托盘**：后台运行，右键切换主题
-- **安全设计**：不上传数据、不读 API Key、不改配置
+通过 Chrome DevTools Protocol 向 Claude Desktop **外部注入** CSS 主题，不碰官方二进制、不破签名、不改配置。
+
+- **CDP 外部注入** — 通过 `--remote-debugging-port` 建立 WebSocket，调用 `CSS.addStyleSheet` 应用主题
+- **不修改官方文件** — app.asar / 签名 / 核心逻辑全部保留
+- **CSS 变量系统** — 20+ 自定义属性控制每个视觉元素
+- **多图层背景** — 背景图片 + 模糊 + 视差，首页突出氛围、任务页自动降干扰
+- **17 款预设主题** — 从 Claude 标志性橙到哥特暗金、樱花粉紫、像素风
+- **自定义导入** — 支持 `.zip` 主题包，Safe CSS 校验后入库
+- **自动备份** — 切换前自动备份，一键恢复，最多 10 份
+- **系统托盘** — 后台运行，右键切换，导航/刷新自动重注入
+- **安全设计** — 不上传数据、不读 API Key、不改 Claude 配置
+
+> 非 Anthropic 官方产品。Claude 及相关权利归其权利人。
+
+## 预设主题
+
+<p align="center">
+  <img src="./docs/images/themes.svg" alt="17 款预设主题色板" width="880">
+</p>
+
+每款主题由 `accent` 色 + 背景色 + CSS 变量系统驱动，支持自定义背景图导入。
 
 ## 工作原理
 
-```
-┌──────────────────────────────────────────────┐
-│          Claude Code Desktop                 │
-│  Electron 42.7.0  (Claude.exe)               │
-│  ┌────────────────────────────────────┐       │
-│  │  Main Process                      │       │
-│  │  ┌─────────────┐  ┌────────────┐   │       │
-│  │  │  Renderer 1 │  │ Renderer 2 │   │ ... │
-│  │  │  (app.asar) │  │ (app.asar) │   │       │
-│  │  └─────────────┘  └────────────┘   │       │
-│  └────────────────────────────────────┘       │
-└──────────────────────────────────────────────┘
-         ▲                              ▲
-         │ CDP WebSocket               │
-         │ (--remote-debugging-port)   │
-         │                              │
-  ┌──────┴──────────────────────────────┴──────┐
-  │   Dream Skin Manager  (Electron Tray App)  │
-  │  ┌────────────────┐  ┌──────────────────┐  │
-  │  │ Theme Engine   │  │ CDP Injector     │  │
-  │  │ - 14 款预设主题 │  │ - 连接检测       │  │
-  │  │ - 变量系统     │  │ - CSS 注入       │  │
-  │  │ - 导入/导出    │  │ - 导航监控       │  │
-  │  └────────────────┘  └──────────────────┘  │
-  │  ┌────────────────┐                        │
-  │  │ Backup Manager │                        │
-  │  │ - 自动备份     │  ┌──────────────────┐  │
-  │  │ - 一键恢复     │  │ Process Manager  │  │
-  │  │ - 最多 10 份   │  │ - 自动检测 Claude │  │
-  │  └────────────────┘  │ - 带 CDP 启动    │  │
-  │                      └──────────────────┘  │
-  └─────────────────────────────────────────────┘
-```
+<p align="center">
+  <img src="./docs/images/architecture.svg" alt="CDP 外部注入工作原理" width="880">
+</p>
 
-1. **检测** — 扫描运行中的 Claude Desktop 进程
+1. **检测** — 扫描运行中的 Claude Desktop 进程（支持官网版 / Microsoft Store 包）
 2. **启动** — 以 `--remote-debugging-port=9222` 重启 Claude
-3. **连接** — 建立 CDP WebSocket 连接
+3. **连接** — 建立 CDP WebSocket（仅绑 `127.0.0.1`）
 4. **注入** — 通过 `CSS.addStyleSheet` 应用主题 CSS
 5. **监控** — 页面导航/刷新时自动重新注入
 6. **备份** — 自动保存原始状态以便恢复
+
+> Microsoft Store 版 Claude 因 MSIX 沙箱限制会吞掉命令行参数，需走 COM 激活（`store-activate.ps1`）。官网安装版直接传参即可。详见 [检测顺序说明](./docs/references.md)。
 
 ## 快速开始
 
@@ -78,52 +74,21 @@ npm run build:assets   # 编译 runtime 主题资源（必需，否则注入会�
 npm start
 ```
 
-> 没运行 `build:assets` 也能启动，注入器会回退到源文件并在内存里即时编译，
-> 但控制台会有警告，性能略差。打包发布前务必先跑一次。
-
-### 检测顺序说明
-
-`findClaudePath()` 现在按以下顺序检测 Claude Desktop（先匹配的优先）：
-
-1. 手动保存的路径（设置页里填的）
-2. `CLAUDE_DESKTOP_PATH` 环境变量
-3. 正在运行的 `Claude.exe` 进程
-4. **官网安装版**（`%LOCALAPPDATA%\Programs\Claude\Claude.exe` 等）
-5. Microsoft Store 包（`Get-AppxPackage *Claude*`）
-6. 开始菜单快捷方式
-7. `WindowsApps` 目录扫描
-
-Store 版的 Claude 因为 MSIX 沙箱限制，命令行参数会被吞掉，
-必须走 COM 激活（`store-activate.ps1`）。官网安装版没这个问题，
-直接 `Claude.exe --remote-debugging-port=9222` 就行。
+> 没运行 `build:assets` 也能启动，注入器会回退到源文件在内存里即时编译，但控制台会有警告。打包发布前务必先跑一次。
 
 ### 构建安装包
 
 ```bash
-npm run build-win
+npm run build:win      # 生成 NSIS 安装包到 dist/
 ```
 
-## 预设主题
+### 使用流程
 
-| 主题 | 风格 |
-|------|------|
-| Default | 默认深色，Claude 标志性橙色 |
-| Gothic Neon | 暗色紫青赛博朋克 |
-| Tokyo Night | 东京夜景风格 |
-| Forest Mist | 自然绿色调 |
-| Sakura Dream | 樱花粉紫浪漫 |
-| Midnight Glass | 玻璃拟态深蓝 |
-| Aurora | 北极光青紫渐变 |
-| Sunset Boulevard | 温暖紫橙渐变 |
-| Ocean Deep | 深海蓝珊瑚色 |
-| Catppuccin Mocha | 温暖奶昔柔彩 |
-| Dracula | 官方 Dracula 紫粉 |
-| Solarized Light | 精密配色亮色主题 |
-| Rosé Pine | 优雅玫瑰松针 |
-| Cyberpunk | 霓虹黄青洋红纯黑 |
-| 超天酱 · INTERNET ANGEL | 粉青紫像素风，2560x1440 JPEG |
-| 超天酱 · INTERNET ANGEL · Pixel Cafe | 同上，无损 PNG 版 |
-| Gothic Void Crusade | 暗金哥特风 |
+1. 启动 Dream Skin Manager（托盘出现图标）
+2. 在「Settings」标签页确认 Claude Desktop 已检测到
+3. 点「Restart Claude with CDP」重启 Claude（首次会带 CDP 参数）
+4. 在「Themes」标签页选择主题并应用
+5. 切换/导入/恢复全部通过托盘右键菜单操作
 
 ## 主题格式
 
@@ -140,7 +105,8 @@ themes/
 │   └── background.png    # 可选背景图片
 ```
 
-`theme.json`:
+`theme.json` 示例：
+
 ```json
 {
   "name": "Midnight Glass",
@@ -159,24 +125,13 @@ themes/
 }
 ```
 
-## 运行测试
-
-```bash
-npm test
-```
-
 ## 安全设计
 
 - 不修改官方安装包（app.asar）
-- 不替换官方文件
-- 不破解签名
-- 不修改核心逻辑
-- 全部修改可恢复
-- 自动备份（最多 10 份）
-- 不上传用户数据
-- 不读取 API Key
-- 不修改 Claude 配置
-- 不修改模型设置
+- 不替换官方文件、不破解签名、不修改核心逻辑
+- 全部修改可恢复，自动备份最多 10 份
+- CDP 只绑 `127.0.0.1`，主题运行期间勿跑来路不明的本机程序
+- 不上传用户数据、不读取 API Key、不修改 Claude 配置与模型设置
 
 ## 技术栈
 
@@ -188,14 +143,20 @@ npm test
 | 打包 | electron-builder 25 |
 | 主题压缩 | adm-zip |
 
-## 许可证
+## 运行测试
 
-MIT License
+```bash
+npm test
+```
 
 ## 致谢
 
 灵感来自 [Codex Dream Skin](https://github.com/Fei-Away/Codex-Dream-Skin) by Fei-Away 以及 [Codex Dream Skin (Internet Angel fork)](https://github.com/EmiyaKatuz/Codex-Dream-Skin) by EmiyaKatuz。
 
+## 许可证
+
+[MIT License](./LICENSE)
+
 ---
 
-> 本项目与 Anthropic PBC 无任何关联。
+> 本项目与 Anthropic PBC 无任何关联。Claude 及相关权利归其权利人。

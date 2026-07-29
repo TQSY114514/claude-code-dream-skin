@@ -226,6 +226,23 @@ class ProcessManager {
       const packages = JSON.parse(output);
       const list = Array.isArray(packages) ? packages : [packages].filter(Boolean);
 
+      // Resolve the real AppUserModelID via Get-StartApps. Store apps use
+      // "<PackageFamilyName>!<AppId>" where the suffix is declared in the
+      // package's AppxManifest.xml and is NOT always "!App" — Claude Desktop
+      // uses "!Claude". Guessing "!App" breaks COM activation (silent failure),
+      // so query Get-StartApps and match by PackageFamilyName prefix.
+      let appUserModelId = null;
+      try {
+        const startOut = execSync(
+          'powershell -NoProfile -Command "Get-StartApps | Where-Object { $_.AppID -like \'Claude_*\' } | Select-Object -ExpandProperty AppID | ConvertTo-Json"',
+          { encoding: 'utf8', timeout: 6000, shell: 'cmd.exe', stdio: ['pipe', 'pipe', 'pipe'] }
+        );
+        const ids = JSON.parse(startOut);
+        const idList = Array.isArray(ids) ? ids : [ids].filter(Boolean);
+        // Prefer the Store-style AUMID (contains "_"), skip the "electron.app.Claude" one.
+        appUserModelId = idList.find(id => typeof id === 'string' && id.includes('_')) || idList[0] || null;
+      } catch (_) { /* Get-StartApps unavailable */ }
+
       for (const pkg of list) {
         if (!pkg.InstallLocation) continue;
         const installDir = pkg.InstallLocation;
@@ -239,7 +256,7 @@ class ProcessManager {
             packageFamilyName: pkg.PackageFamilyName || null,
             signatureKind: pkg.SignatureKind || null,
             installLocation: installDir,
-            appUserModelId: pkg.PackageFamilyName ? `${pkg.PackageFamilyName}!App` : null,
+            appUserModelId,
           };
         }
       }

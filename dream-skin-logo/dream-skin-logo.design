@@ -1,0 +1,37 @@
+{
+  "data": [
+    {
+      "id": "image-001",
+      "title": "Dream Skin 极光球体 Logo",
+      "type": "image",
+      "version": 1,
+      "createdAt": 1753752540000,
+      "canvasData": {
+        "x": 0,
+        "y": 0
+      },
+      "devMetadata": {
+        "imageSrc": "assets/dream-skin-logo-aurora.jpg"
+      }
+    },
+    {
+      "id": "image-002",
+      "title": "Dream Skin 渐变面具 Logo",
+      "type": "image",
+      "version": 1,
+      "createdAt": 1753752600000,
+      "canvasData": {
+        "x": 620,
+        "y": 0
+      },
+      "devMetadata": {
+        "imageSrc": "assets/dream-skin-logo-mask.jpg"
+      }
+    }
+  ],
+  "config": {
+    "autoLayout": true,
+    "deviceType": "freeSize",
+    "projectName": "Claude Code Dream Skin Logo"
+  }
+}

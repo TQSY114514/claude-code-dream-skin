@@ -1,0 +1,147 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 540" role="img" aria-label="预设主题色板">
+  <defs>
+    <linearGradient id="cardbg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1a1a1f"/>
+      <stop offset="1" stop-color="#131316"/>
+    </linearGradient>
+  </defs>
+  <rect width="880" height="540" fill="#0d0d0f"/>
+
+  <!-- 4 columns x 5 rows, cell 200x96, gap 16, origin 24,24 -->
+  <g font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif" text-rendering="geometricPrecision">
+
+    <!-- Row 1 -->
+    <g transform="translate(24,24)">
+      <rect width="200" height="96" rx="10" fill="url(#cardbg)"/>
+      <rect width="6" height="96" rx="3" fill="#FF6B35"/>
+      <text x="20" y="38" font-size="14" font-weight="600" fill="#f4f4f5">Default</text>
+      <text x="20" y="58" font-size="11" fill="#a1a1aa">Claude 标志性橙</text>
+      <circle cx="180" cy="78" r="7" fill="#FF6B35"/>
+    </g>
+    <g transform="translate(240,24)">
+      <rect width="200" height="96" rx="10" fill="url(#cardbg)"/>
+      <rect width="6" height="96" rx="3" fill="#7ec8e3"/>
+      <text x="20" y="38" font-size="14" font-weight="600" fill="#f4f4f5">Gothic Neon</text>
+      <text x="20" y="58" font-size="11" fill="#a1a1aa">暗色紫青赛博朋克</text>
+      <circle cx="180" cy="78" r="7" fill="#7ec8e3"/>
+    </g>
+    <g transform="translate(456,24)">
+      <rect width="200" height="96" rx="10" fill="url(#cardbg)"/>
+      <rect width="6" height="96" rx="3" fill="#7dcfff"/>
+      <text x="20" y="38" font-size="14" font-weight="600" fill="#f4f4f5">Tokyo Night</text>
+      <text x="20" y="58" font-size="11" fill="#a1a1aa">东京夜景风格</text>
+      <circle cx="180" cy="78" r="7" fill="#7dcfff"/>
+    </g>
+    <g transform="translate(672,24)">
+      <rect width="200" height="96" rx="10" fill="url(#cardbg)"/>
+      <rect width="6" height="96" rx="3" fill="#8fc9a0"/>
+      <text x="20" y="38" font-size="14" font-weight="600" fill="#f4f4f5">Forest Mist</text>
+      <text x="20" y="58" font-size="11" fill="#a1a1aa">自然绿色调</text>
+      <circle cx="180" cy="78" r="7" fill="#8fc9a0"/>
+    </g>
+
+    <!-- Row 2 -->
+    <g transform="translate(24,136)">
+      <rect width="200" height="96" rx="10" fill="url(#cardbg)"/>
+      <rect width="6" height="96" rx="3" fill="#e8a0c0"/>
+      <text x="20" y="38" font-size="14" font-weight="600" fill="#f4f4f5">Sakura Dream</text>
+      <text x="20" y="58" font-size="11" fill="#a1a1aa">樱花粉紫浪漫</text>
+      <circle cx="180" cy="78" r="7" fill="#e8a0c0"/>
+    </g>
+    <g transform="translate(240,136)">
+      <rect width="200" height="96" rx="10" fill="url(#cardbg)"/>
+      <rect width="6" height="96" rx="3" fill="#22d3ee"/>
+      <text x="20" y="38" font-size="14" font-weight="600" fill="#f4f4f5">Midnight Glass</text>
+      <text x="20" y="58" font-size="11" fill="#a1a1aa">玻璃拟态深蓝</text>
+      <circle cx="180" cy="78" r="7" fill="#22d3ee"/>
+    </g>
+    <g transform="translate(456,136)">
+      <rect width="200" height="96" rx="10" fill="url(#cardbg)"/>
+      <rect width="6" height="96" rx="3" fill="#00FFC8"/>
+      <text x="20" y="38" font-size="14" font-weight="600" fill="#f4f4f5">Aurora</text>
+      <text x="20" y="58" font-size="11" fill="#a1a1aa">北极光青紫渐变</text>
+      <circle cx="180" cy="78" r="7" fill="#00FFC8"/>
+    </g>
+    <g transform="translate(672,136)">
+      <rect width="200" height="96" rx="10" fill="url(#cardbg)"/>
+      <rect width="6" height="96" rx="3" fill="#ff7e5f"/>
+      <text x="20" y="38" font-size="14" font-weight="600" fill="#f4f4f5">Sunset Boulevard</text>
+      <text x="20" y="58" font-size="11" fill="#a1a1aa">温暖紫橙渐变</text>
+      <circle cx="180" cy="78" r="7" fill="#ff7e5f"/>
+    </g>
+
+    <!-- Row 3 -->
+    <g transform="translate(24,248)">
+      <rect width="200" height="96" rx="10" fill="url(#cardbg)"/>
+      <rect width="6" height="96" rx="3" fill="#4FC3F7"/>
+      <text x="20" y="38" font-size="14" font-weight="600" fill="#f4f4f5">Ocean Deep</text>
+      <text x="20" y="58" font-size="11" fill="#a1a1aa">深海蓝珊瑚色</text>
+      <circle cx="180" cy="78" r="7" fill="#4FC3F7"/>
+    </g>
+    <g transform="translate(240,248)">
+      <rect width="200" height="96" rx="10" fill="url(#cardbg)"/>
+      <rect width="6" height="96" rx="3" fill="#cba6f7"/>
+      <text x="20" y="38" font-size="14" font-weight="600" fill="#f4f4f5">Catppuccin Mocha</text>
+      <text x="20" y="58" font-size="11" fill="#a1a1aa">温暖奶昔柔彩</text>
+      <circle cx="180" cy="78" r="7" fill="#cba6f7"/>
+    </g>
+    <g transform="translate(456,248)">
+      <rect width="200" height="96" rx="10" fill="url(#cardbg)"/>
+      <rect width="6" height="96" rx="3" fill="#BD93F9"/>
+      <text x="20" y="38" font-size="14" font-weight="600" fill="#f4f4f5">Dracula</text>
+      <text x="20" y="58" font-size="11" fill="#a1a1aa">官方 Dracula 紫粉</text>
+      <circle cx="180" cy="78" r="7" fill="#BD93F9"/>
+    </g>
+    <g transform="translate(672,248)">
+      <rect width="200" height="96" rx="10" fill="#f4f4f5"/>
+      <rect width="6" height="96" rx="3" fill="#268bd2"/>
+      <text x="20" y="38" font-size="14" font-weight="600" fill="#1a1a1f">Solarized Light</text>
+      <text x="20" y="58" font-size="11" fill="#52525b">精密配色亮色主题</text>
+      <circle cx="180" cy="78" r="7" fill="#268bd2"/>
+    </g>
+
+    <!-- Row 4 -->
+    <g transform="translate(24,360)">
+      <rect width="200" height="96" rx="10" fill="url(#cardbg)"/>
+      <rect width="6" height="96" rx="3" fill="#c4a7e7"/>
+      <text x="20" y="38" font-size="14" font-weight="600" fill="#f4f4f5">Rosé Pine</text>
+      <text x="20" y="58" font-size="11" fill="#a1a1aa">优雅玫瑰松针</text>
+      <circle cx="180" cy="78" r="7" fill="#c4a7e7"/>
+    </g>
+    <g transform="translate(240,360)">
+      <rect width="200" height="96" rx="10" fill="url(#cardbg)"/>
+      <rect width="6" height="96" rx="3" fill="#FCEE0A"/>
+      <text x="20" y="38" font-size="14" font-weight="600" fill="#f4f4f5">Cyberpunk</text>
+      <text x="20" y="58" font-size="11" fill="#a1a1aa">霓虹黄青洋红纯黑</text>
+      <circle cx="180" cy="78" r="7" fill="#FCEE0A"/>
+    </g>
+    <g transform="translate(456,360)">
+      <rect width="200" height="96" rx="10" fill="url(#cardbg)"/>
+      <rect width="6" height="96" rx="3" fill="#ff45c8"/>
+      <text x="20" y="38" font-size="14" font-weight="600" fill="#f4f4f5">INTERNET ANGEL</text>
+      <text x="20" y="58" font-size="11" fill="#a1a1aa">粉青紫像素风</text>
+      <circle cx="180" cy="78" r="7" fill="#ff45c8"/>
+    </g>
+    <g transform="translate(672,360)">
+      <rect width="200" height="96" rx="10" fill="url(#cardbg)"/>
+      <rect width="6" height="96" rx="3" fill="#ff45c8"/>
+      <text x="20" y="38" font-size="14" font-weight="600" fill="#f4f4f5">Pixel Cafe</text>
+      <text x="20" y="58" font-size="11" fill="#a1a1aa">同上 · 无损 PNG</text>
+      <circle cx="180" cy="78" r="7" fill="#ff45c8"/>
+    </g>
+
+    <!-- Row 5 -->
+    <g transform="translate(24,472)">
+      <rect width="200" height="96" rx="10" fill="url(#cardbg)"/>
+      <rect width="6" height="96" rx="3" fill="#c8a55a"/>
+      <text x="20" y="38" font-size="14" font-weight="600" fill="#f4f4f5">Gothic Void Crusade</text>
+      <text x="20" y="58" font-size="11" fill="#a1a1aa">暗金哥特风</text>
+      <circle cx="180" cy="78" r="7" fill="#c8a55a"/>
+    </g>
+  </g>
+
+  <text x="24" y="528" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif"
+        font-size="11" fill="#71717a" text-rendering="geometricPrecision">
+    17 款预设主题 · 每款由 accent 色 + 背景色 + CSS 变量系统驱动
+  </text>
+</svg>
