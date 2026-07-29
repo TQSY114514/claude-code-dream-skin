@@ -1,0 +1,67 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 260" role="img" aria-label="Claude Code Dream Skin">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0d0d0f"/>
+      <stop offset="1" stop-color="#161018"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.82" cy="0.18" r="0.55">
+      <stop offset="0" stop-color="#FF6B35" stop-opacity="0.38"/>
+      <stop offset="0.45" stop-color="#ff45c8" stop-opacity="0.14"/>
+      <stop offset="1" stop-color="#0d0d0f" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="title" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#FF6B35"/>
+      <stop offset="0.5" stop-color="#ff45c8"/>
+      <stop offset="1" stop-color="#c4a7e7"/>
+    </linearGradient>
+    <linearGradient id="layer1" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#FF6B35"/><stop offset="1" stop-color="#FF6B35" stop-opacity="0.2"/>
+    </linearGradient>
+    <linearGradient id="layer2" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#ff45c8"/><stop offset="1" stop-color="#ff45c8" stop-opacity="0.2"/>
+    </linearGradient>
+    <linearGradient id="layer3" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#7dcfff"/><stop offset="1" stop-color="#7dcfff" stop-opacity="0.2"/>
+    </linearGradient>
+    <linearGradient id="layer4" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#c4a7e7"/><stop offset="1" stop-color="#c4a7e7" stop-opacity="0.2"/>
+    </linearGradient>
+    <linearGradient id="layer5" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#8fc9a0"/><stop offset="1" stop-color="#8fc9a0" stop-opacity="0.2"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="880" height="260" fill="url(#bg)"/>
+  <rect width="880" height="260" fill="url(#glow)"/>
+
+  <g opacity="0.85">
+    <rect x="0" y="248" width="880" height="2" fill="url(#layer5)"/>
+    <rect x="0" y="244" width="880" height="2" fill="url(#layer4)"/>
+    <rect x="0" y="240" width="880" height="2" fill="url(#layer3)"/>
+    <rect x="0" y="236" width="880" height="2" fill="url(#layer2)"/>
+    <rect x="0" y="232" width="880" height="2" fill="url(#layer1)"/>
+  </g>
+
+  <text x="48" y="78" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif"
+        font-size="13" font-weight="600" letter-spacing="3" fill="#8b8b95" text-rendering="geometricPrecision">
+    CLAUDE CODE · DREAM SKIN
+  </text>
+
+  <text x="46" y="158" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif"
+        font-size="74" font-weight="800" letter-spacing="-2" fill="url(#title)" text-rendering="geometricPrecision">
+    Dream Skin
+  </text>
+
+  <text x="48" y="196" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif"
+        font-size="17" font-weight="400" fill="#d4d4d8" text-rendering="geometricPrecision">
+    给 Claude Code 桌面端换一张会呼吸的脸
+  </text>
+
+  <circle cx="818" cy="78" r="4" fill="#FF6B35">
+    <animate attributeName="opacity" values="0.35;1;0.35" dur="3.6s" repeatCount="indefinite"/>
+  </circle>
+  <text x="828" y="82" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif"
+        font-size="11" font-weight="500" fill="#8b8b95" text-rendering="geometricPrecision">
+    live
+  </text>
+</svg>
