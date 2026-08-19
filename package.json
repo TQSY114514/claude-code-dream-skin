@@ -89,5 +89,8 @@
       "perMachine": false
     },
     "asar": true
+  },
+  "overrides": {
+    "fast-uri": "2.4.4"
   }
 }
