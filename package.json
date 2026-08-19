@@ -48,6 +48,11 @@
     "electron-builder": "^25.0.0",
     "eslint": "^9.15.0"
   },
+  "overrides": {
+    "minimatch@10.2.5": {
+      "brace-expansion": "1.1.18"
+    }
+  },
   "build": {
     "appId": "com.claudecodedreamskin.app",
     "productName": "Claude Code Dream Skin",
