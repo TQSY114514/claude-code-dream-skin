@@ -86,5 +86,8 @@
       "perMachine": false
     },
     "asar": true
+  },
+  "overrides": {
+    "ip-address": "10.3.1"
   }
 }
