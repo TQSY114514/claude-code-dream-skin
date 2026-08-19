@@ -48,6 +48,9 @@
     "electron-builder": "^25.0.0",
     "eslint": "^9.15.0"
   },
+  "overrides": {
+    "builder-util-runtime": "9.7.0"
+  },
   "build": {
     "appId": "com.claudecodedreamskin.app",
     "productName": "Claude Code Dream Skin",
