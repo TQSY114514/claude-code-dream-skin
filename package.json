@@ -34,7 +34,7 @@
     "dist": "npm run lint && npm run build:assets && npm run build"
   },
   "engines": {
-    "node": ">=18.0.0"
+    "node": ">=22.12.0"
   },
   "dependencies": {
     "adm-zip": "^0.6.0",
@@ -44,12 +44,13 @@
     "ws": "^8.21.1"
   },
   "devDependencies": {
-    "electron": "^39.8.10",
+    "electron": "^43.4.1",
     "electron-builder": "^25.0.0",
     "eslint": "^9.15.0"
   },
   "overrides": {
-    "builder-util-runtime": "9.7.0"
+    "builder-util-runtime": "9.7.0",
+    "fast-uri": "2.4.4"
   },
   "build": {
     "appId": "com.claudecodedreamskin.app",
@@ -89,8 +90,5 @@
       "perMachine": false
     },
     "asar": true
-  },
-  "overrides": {
-    "fast-uri": "2.4.4"
   }
 }
