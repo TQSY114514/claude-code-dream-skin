@@ -49,7 +49,9 @@
     "eslint": "^9.15.0"
   },
   "overrides": {
-    "builder-util-runtime": "9.7.0"
+    "builder-util-runtime": "9.7.0",
+    "fast-uri": "2.4.4",
+    "tar": "7.5.21"
   },
   "build": {
     "appId": "com.claudecodedreamskin.app",
@@ -89,8 +91,5 @@
       "perMachine": false
     },
     "asar": true
-  },
-  "overrides": {
-    "fast-uri": "2.4.4"
   }
 }
